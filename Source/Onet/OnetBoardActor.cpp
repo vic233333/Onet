@@ -5,7 +5,6 @@
 #include "OnetBoardComponent.h"
 #include "Components/SceneComponent.h"
 
-// Sets default values
 AOnetBoardActor::AOnetBoardActor()
 {
 	PrimaryActorTick.bCanEverTick = false; // The actor does not need to tick every frame since it will listen to events.
