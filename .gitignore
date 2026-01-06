@@ -74,10 +74,32 @@ Win32/
 .vscode/*.log
 
 ############################################
-# JetBrains Rider / IntelliJ family (if used)
+# JetBrains Rider / IntelliJ family
 ############################################
+# Rider/IntelliJ project model + caches
 .idea/
-*.sln.iml
+*.iml
+*.ipr
+*.iws
+
+# Rider run configurations (if you don't want to track them)
+.run/
+
+# Rider older versions / per-solution settings directory (occasionally appears)
+.Rider*/
+**/.Rider*/
+
+# ReSharper / Rider backend caches
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+*.sln.DotSettings.user
+_ReSharper.Caches/
+**/_ReSharper.Caches/
+
+# JetBrains general cache/output folders (sometimes present depending on tooling/plugins)
+out/
+cmake-build-*/
 
 ############################################
 # Unreal Rider plugin / RiderLink (sometimes appears)
