@@ -51,14 +51,27 @@ void UOnetTileWidget::SetTileVisual(const bool bIsEmpty, const int32 TileTypeId,
 	{
 		// Disable interaction for empty tiles.
 		TileButton->SetIsEnabled(!bIsEmpty);
+
+		// Highlight selected tiles.
+		if (!bIsEmpty)
+		{
+			TileButton->SetBackgroundColor(bIsSelected ? SelectedColor : NormalColor);
+		}
 	}
 
 	if (LabelText)
 	{
 		// Show the type id for debugging. Later you replace this with icon images.
 		LabelText->SetText(bIsEmpty ? FText::GetEmpty() : FText::AsNumber(TileTypeId));
-	}
 
-	// bIsSelected is provided for highlight logic.
-	// TODO: Prefer implementing highlight in Blueprint (e.g., switch border color) for rapid iteration.
+		// Make selected text more visible.
+		if (!bIsEmpty && bIsSelected)
+		{
+			LabelText->SetColorAndOpacity(FSlateColor(FLinearColor::Black));
+		}
+		else
+		{
+			LabelText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
+		}
+	}
 }

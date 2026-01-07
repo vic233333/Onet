@@ -36,6 +36,10 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category="Onet|UI")
 	TSubclassOf<UOnetTileWidget> TileWidgetClass;
 
+	// Padding between tiles (in pixels).
+	UPROPERTY(EditDefaultsOnly, Category="Onet|UI")
+	float TilePadding = 4.0f;
+
 	// Logic reference.
 	UPROPERTY()
 	TObjectPtr<UOnetBoardComponent> Board;
@@ -49,6 +53,16 @@ private:
 	int32 SelectedY = -1;
 	bool bHasSelection = false;
 
+protected:
+	// Blueprint implementable event for drawing the connection path.
+	// This allows designers to implement custom path drawing and animation in Blueprint.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Onet|UI")
+	void DrawConnectionPath(const TArray<FIntPoint>& Path);
+
+	// Blueprint implementable event for showing match failed feedback.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Onet|UI")
+	void ShowMatchFailedFeedback();
+
 private:
 	void RebuildGrid();
 	void RefreshAllTiles();
@@ -60,5 +74,8 @@ private:
 	void HandleSelectionChanged(const bool bHasFirstSelection, const FIntPoint FirstSelection);
 
 	UFUNCTION()
-	void HandleTileClicked(const int32 X, const int32 Y);
+	void HandleMatchSuccessful(const TArray<FIntPoint>& Path);
+
+	UFUNCTION()
+	void HandleMatchFailed();
 };

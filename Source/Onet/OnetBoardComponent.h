@@ -35,8 +35,19 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnetBoardChanged);
  * Selection changed event.
  * We expose both: whether selection exists, and the coordinates of the second selection (if any).
  */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnetBoardComponent, bool, bHasFirstSelection,
-                                             FIntPoint, bHasSecondSelection);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnetSelectionChanged, bool, bHasFirstSelection,
+                                             FIntPoint, FirstSelection);
+
+/**
+ * Match successful event: fired when two tiles are successfully matched.
+ * Passes the path that connects the two tiles for animation purposes.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnetMatchSuccessful, const TArray<FIntPoint>&, Path);
+
+/**
+ * Match failed event: fired when two tiles cannot be matched.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnetMatchFailed);
 
 /**
  * Board component that contains the game logic for Onet.
@@ -79,13 +90,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	void HandleTileClicked(int32 X, int32 Y);
 
+	// Check if two tiles can be linked with at most 2 turns.
+	// Returns true if a valid path exists, and optionally returns the path.
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	bool CanLink(int32 X1, int32 Y1, int32 X2, int32 Y2, TArray<FIntPoint>& OutPath) const;
+
 	// Fired when the board changes (tiles removed, etc.)
 	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
 	FOnetBoardChanged OnBoardChanged;
 
 	// Fired when selection changes.
 	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
-	FOnetBoardComponent OnSelectionChanged;
+	FOnetSelectionChanged OnSelectionChanged;
+
+	// Fired when two tiles are successfully matched (with path for animation).
+	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
+	FOnetMatchSuccessful OnMatchSuccessful;
+
+	// Fired when match attempt fails.
+	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
+	FOnetMatchFailed OnMatchFailed;
 
 private:
 	int32 Width = 0;

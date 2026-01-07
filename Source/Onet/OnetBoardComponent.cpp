@@ -101,6 +101,151 @@ bool UOnetBoardComponent::GetTile(const int32 X, const int32 Y, FOnetTile& OutTi
 	return true;
 }
 
+/**
+ * Check if two tiles can be linked with at most 2 turns using BFS.
+ * The path can only go through empty tiles (or the start/end tiles).
+ *
+ * @param X1, Y1 - Coordinates of the first tile.
+ * @param X2, Y2 - Coordinates of the second tile.
+ * @param OutPath - Output parameter to receive the path points.
+ * @return True if a valid path exists with at most 2 turns.
+ */
+bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2, const int32 Y2, TArray<FIntPoint>& OutPath) const
+{
+	OutPath.Empty();
+
+	// Same position is not a valid link.
+	if (X1 == X2 && Y1 == Y2)
+	{
+		return false;
+	}
+
+	// Check if both tiles are in bounds and not empty.
+	if (!IsInBonds(X1, Y1) || !IsInBonds(X2, Y2))
+	{
+		return false;
+	}
+
+	const int32 Index1 = ToIndex(X1, Y1);
+	const int32 Index2 = ToIndex(X2, Y2);
+
+	if (Tiles[Index1].bEmpty || Tiles[Index2].bEmpty)
+	{
+		return false;
+	}
+
+	// Check if tiles have the same type.
+	if (Tiles[Index1].TileTypeId != Tiles[Index2].TileTypeId)
+	{
+		return false;
+	}
+
+	// BFS structure: Position, Direction, Turns, Path
+	struct FPathNode
+	{
+		FIntPoint Position;
+		int32 Direction; // 0=Right, 1=Down, 2=Left, 3=Up, -1=Start
+		int32 Turns;
+		TArray<FIntPoint> Path;
+
+		// Default constructor for TQueue::Dequeue
+		FPathNode()
+			: Position(FIntPoint::ZeroValue), Direction(-1), Turns(0)
+		{
+		}
+
+		FPathNode(const FIntPoint& InPos, const int32 InDir, const int32 InTurns, const TArray<FIntPoint>& InPath)
+			: Position(InPos), Direction(InDir), Turns(InTurns), Path(InPath)
+		{
+		}
+	};
+
+	// Direction vectors: Right, Down, Left, Up
+	const FIntPoint Directions[] = {
+		FIntPoint(1, 0),   // Right
+		FIntPoint(0, 1),   // Down
+		FIntPoint(-1, 0),  // Left
+		FIntPoint(0, -1)   // Up
+	};
+
+	TQueue<FPathNode> Queue;
+	TSet<TPair<FIntPoint, int32>> Visited; // (Position, Direction)
+
+	// Start from the first tile in all four directions.
+	for (int32 Dir = 0; Dir < 4; ++Dir)
+	{
+		TArray<FIntPoint> InitialPath;
+		InitialPath.Add(FIntPoint(X1, Y1));
+		Queue.Enqueue(FPathNode(FIntPoint(X1, Y1), Dir, 0, InitialPath));
+	}
+
+	while (!Queue.IsEmpty())
+	{
+		FPathNode Current;
+		Queue.Dequeue(Current);
+
+		// Try moving in all four directions.
+		for (int32 NewDir = 0; NewDir < 4; ++NewDir)
+		{
+			const FIntPoint NextPos = Current.Position + Directions[NewDir];
+
+			// Calculate turns: if direction changes, increment turn count.
+			int32 NewTurns = Current.Turns;
+			if (Current.Direction != -1 && Current.Direction != NewDir)
+			{
+				NewTurns++;
+			}
+
+			// Exceeded maximum turns.
+			if (NewTurns > 2)
+			{
+				continue;
+			}
+
+			// Check if next position is in bounds.
+			if (!IsInBonds(NextPos.X, NextPos.Y))
+			{
+				continue;
+			}
+
+			const int32 NextIndex = ToIndex(NextPos.X, NextPos.Y);
+
+			// Check if we reached the target.
+			if (NextPos.X == X2 && NextPos.Y == Y2)
+			{
+				// Found a valid path!
+				TArray<FIntPoint> FinalPath = Current.Path;
+				FinalPath.Add(NextPos);
+				OutPath = FinalPath;
+				return true;
+			}
+
+			// Can only move through empty tiles (not the start or end).
+			if (!Tiles[NextIndex].bEmpty)
+			{
+				continue;
+			}
+
+			// Check if we've already visited this state.
+			const TPair<FIntPoint, int32> State(NextPos, NewDir);
+			if (Visited.Contains(State))
+			{
+				continue;
+			}
+
+			Visited.Add(State);
+
+			// Add to queue.
+			TArray<FIntPoint> NewPath = Current.Path;
+			NewPath.Add(NextPos);
+			Queue.Enqueue(FPathNode(NextPos, NewDir, NewTurns, NewPath));
+		}
+	}
+
+	// No valid path found.
+	return false;
+}
+
 void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 {
 	if (!IsInBonds(X, Y) || Tiles.Num() == 0)
@@ -141,20 +286,31 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 		return;
 	}
 
-	const FOnetTile FirstTile = Tiles[ToIndex(FirstSelection.X, FirstSelection.Y)];
-	const FOnetTile SecondTile = Tiles[Index];
+	// Check if the two tiles can be linked.
+	TArray<FIntPoint> Path;
+	const bool bCanLink = CanLink(FirstSelection.X, FirstSelection.Y, X, Y, Path);
 
-	const bool bSameType = (FirstTile.TileTypeId == SecondTile.TileTypeId);
-
-	if (bSameType)
+	if (bCanLink)
 	{
-		// MVP behavior: remove if same type, no path check yet.
-		// TODO: replace this with CanLink function
+		UE_LOG(LogTemp, Log, TEXT("Match successful! Path has %d points."), Path.Num());
+
+		// Broadcast match successful event with the path for animation.
+		OnMatchSuccessful.Broadcast(Path);
+
+		// Remove the matched tiles.
 		Tiles[ToIndex(FirstSelection.X, FirstSelection.Y)].bEmpty = true;
 		Tiles[Index].bEmpty = true;
 
 		// Notify UI to refresh.
 		OnBoardChanged.Broadcast();
+	}
+	else
+	{
+		// Match failed.
+		UE_LOG(LogTemp, Warning, TEXT("Match failed: no valid path."));
+
+		// Broadcast match failed event for feedback.
+		OnMatchFailed.Broadcast();
 	}
 
 	// Reset selection after the second click for simple UX.

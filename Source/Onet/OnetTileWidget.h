@@ -51,7 +51,14 @@ protected:
 	// Label for debugging (show tileTypedId as a number).
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> LabelText;
-	
+
+	// Colors for tile states (can be customized in Blueprint).
+	UPROPERTY(EditDefaultsOnly, Category="Onet|Tile")
+	FLinearColor NormalColor = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+	UPROPERTY(EditDefaultsOnly, Category="Onet|Tile")
+	FLinearColor SelectedColor = FLinearColor(1.0f, 1.0f, 0.0f, 1.0f); // Yellow highlight
+
 	int32 X = -1;
 	int32 Y = -1;
 	

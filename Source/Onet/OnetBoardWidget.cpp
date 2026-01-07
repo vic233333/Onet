@@ -28,6 +28,8 @@ void UOnetBoardWidget::InitializeWithBoard(UOnetBoardComponent* InBoard)
 	// Subscribe to board events so UI updates can be event-driven.
 	Board->OnBoardChanged.AddDynamic(this, &UOnetBoardWidget::HandleBoardChanged);
 	Board->OnSelectionChanged.AddDynamic(this, &UOnetBoardWidget::HandleSelectionChanged);
+	Board->OnMatchSuccessful.AddDynamic(this, &UOnetBoardWidget::HandleMatchSuccessful);
+	Board->OnMatchFailed.AddDynamic(this, &UOnetBoardWidget::HandleMatchFailed);
 
 	RebuildGrid();
 	RefreshAllTiles();
@@ -42,6 +44,9 @@ void UOnetBoardWidget::RebuildGrid()
 
 	GridPanel->ClearChildren();
 	TileWidgets.Reset();
+
+	// Configure UniformGridPanel to have padding between tiles.
+	GridPanel->SetSlotPadding(FMargin(TilePadding));
 
 	const int32 W = Board->GetBoardWidth();
 	const int32 H = Board->GetBoardHeight();
@@ -113,11 +118,15 @@ void UOnetBoardWidget::HandleSelectionChanged(const bool bHasFirstSelection, con
 	RefreshAllTiles();
 }
 
-void UOnetBoardWidget::HandleTileClicked(const int32 X, const int32 Y)
+void UOnetBoardWidget::HandleMatchSuccessful(const TArray<FIntPoint>& Path)
 {
-	// Forward click into the board logic layer.
-	if (Board)
-	{
-		Board->HandleTileClicked(X, Y);
-	}
+	// Call the Blueprint implementable event to draw the path.
+	// Designers can implement custom drawing and animation in Blueprint.
+	DrawConnectionPath(Path);
+}
+
+void UOnetBoardWidget::HandleMatchFailed()
+{
+	// Call the Blueprint implementable event to show feedback.
+	ShowMatchFailedFeedback();
 }
