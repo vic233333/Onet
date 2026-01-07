@@ -52,9 +52,8 @@ void UOnetBoardWidget::RebuildGrid()
 	{
 		for (int32 X = 0; X < W; X++)
 		{
-			if (UOnetTileWidget* TileWidget = CreateWidget<UOnetTileWidget>(this, TileWidgetClass))
+			if (UOnetTileWidget* Tile = CreateWidget<UOnetTileWidget>(this, TileWidgetClass))
 			{
-				UOnetTileWidget* Tile = CreateWidget<UOnetTileWidget>(this, TileWidgetClass);
 				Tile->InitializeTile(X, Y);
 
 				// Each tile notifies the board when clicked.

@@ -14,9 +14,10 @@ AOnetBoardActor::AOnetBoardActor()
 	SetRootComponent(Root);
 	
 	UE_LOG(LogTemp, Display, TEXT("AOnetBoardActor: Creating BoardComponent.")); // Log when creating the board component.
+	BoardComponent = CreateDefaultSubobject<UOnetBoardComponent>(TEXT("BoardComponent"));
 }
 
-// // Called when the game starts or when spawned
+// Called when the game starts or when spawned
 // void AOnetBoardActor::BeginPlay()
 // {
 // 	Super::BeginPlay();
@@ -29,4 +30,3 @@ AOnetBoardActor::AOnetBoardActor()
 // 	Super::Tick(DeltaTime);
 //
 // }
-
