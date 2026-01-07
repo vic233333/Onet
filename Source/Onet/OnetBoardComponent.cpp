@@ -64,6 +64,13 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
 		}
 	}
 
+	// Populate Tiles from shuffled TypeBag
+	for (int32 i = 0; i < NumCells; ++i)
+	{
+		Tiles[i].TileTypeId = TypeBag[i];
+		Tiles[i].bEmpty = false;
+	}
+
 	// Reset selection state
 	bHasFirstSelection = false;
 	FirstSelection = FIntPoint(-1, -1);
