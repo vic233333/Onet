@@ -3,8 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "OnetBoardComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "OnetBoardWidget.generated.h"
+
+class UUniformGridPanel;
+class UUniformGridComponent;
+class UOnetTileWidget;
 
 /**
  * 
@@ -13,5 +18,47 @@ UCLASS()
 class ONET_API UOnetBoardWidget : public UUserWidget
 {
 	GENERATED_BODY()
-	
+
+public:
+	// Inject board logic component into this UI.
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	void InitializeWithBoard(UOnetBoardComponent* InBoard);
+
+protected:
+	virtual void NativeOnInitialized() override;
+
+private:
+	// BindWidget requires a UniformGridPanel named exactly "GridPanel" in WBP_OnetBoard.
+	UPROPERTY(meta=(BindWidget))
+	TObjectPtr<UUniformGridPanel> GridPanel;
+
+	// Tile widget class to instantiate per cell (assigned in WBP_OnetBoard).
+	UPROPERTY(EditDefaultsOnly, Category="Onet|UI")
+	TSubclassOf<UOnetTileWidget> TileWidgetClass;
+
+	// Logic reference.
+	UPROPERTY()
+	TObjectPtr<UOnetBoardComponent> Board;
+
+	// Cached tile widgets (size = Width * Height).
+	UPROPERTY()
+	TArray<TObjectPtr<UOnetTileWidget>> TileWidgets;
+
+	// Cached selection state form board events.
+	int32 SelectedX = -1;
+	int32 SelectedY = -1;
+	bool bHasSelection = false;
+
+private:
+	void RebuildGrid();
+	void RefreshAllTiles();
+
+	UFUNCTION()
+	void HandleBoardChanged();
+
+	UFUNCTION()
+	void HandleSelectionChanged(const bool bHasFirstSelection, const FIntPoint FirstSelection);
+
+	UFUNCTION()
+	void HandleTileClicked(const int32 X, const int32 Y);
 };
