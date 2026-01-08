@@ -116,11 +116,18 @@ public:
 	FOnetMatchFailed OnMatchFailed;
 
 private:
+	// Logical dimensions (what UI sees)
 	int32 Width = 0;
 	int32 Height = 0;
 
+	// Physical dimensions (includes padding)
+	// PhysicalWidth = Width + 2, PhysicalHeight = Height + 2
+	// The outer ring is always empty, allowing paths to go around the board edges.
+	int32 PhysicalWidth = 0;
+	int32 PhysicalHeight = 0;
+
 	// Store tile in 1D array for simplicity and better cache-friendliness.
-	// Index = Y * Width + X
+	// Index = PhysY * PhysicalWidth + PhysX (using physical coordinates)
 	UPROPERTY()
 	TArray<FOnetTile> Tiles;
 
@@ -128,8 +135,31 @@ private:
 	bool bHasFirstSelection = false;
 	FIntPoint FirstSelection = FIntPoint(-1, -1);
 
-	int32 ToIndex(const int32 X, const int32 Y) const { return Y * Width + X; }
+	// Convert logical coordinate to physical coordinate (add padding offset)
+	FIntPoint LogicalToPhysical(const FIntPoint& Logical) const
+	{
+		return FIntPoint(Logical.X + 1, Logical.Y + 1);
+	}
 
+	// Convert logical coordinates to physical index in Tiles array
+	int32 LogicalToPhysicalIndex(const int32 X, const int32 Y) const
+	{
+		return (Y + 1) * PhysicalWidth + (X + 1);
+	}
+
+	// Convert physical coordinates to index in Tiles array
+	int32 PhysicalToIndex(const int32 PhysX, const int32 PhysY) const
+	{
+		return PhysY * PhysicalWidth + PhysX;
+	}
+
+	// Check if physical coordinates are in bounds
+	bool IsPhysicalInBounds(const int32 PhysX, const int32 PhysY) const
+	{
+		return PhysX >= 0 && PhysX < PhysicalWidth && PhysY >= 0 && PhysY < PhysicalHeight;
+	}
+
+	// Check if logical coordinates are in bounds
 	bool IsInBonds(const int32 X, const int32 Y) const
 	{
 		return X >= 0 && X < Width && Y >= 0 && Y < Height;

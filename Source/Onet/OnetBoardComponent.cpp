@@ -18,7 +18,7 @@ UOnetBoardComponent::UOnetBoardComponent()
  */
 void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHeight, const int32 InNumTileTypes)
 {
-	// Ensure minimum dimensions of 1x1
+	// Ensure minimum logical dimensions of 1x1
 	Width = FMath::Max(1, InWidth);
 	Height = FMath::Max(1, InHeight);
 
@@ -33,7 +33,20 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
 		NumCells = Width * Height;
 	}
 
-	Tiles.SetNum(NumCells);
+	// Set physical dimensions with padding (1 tile border on all sides)
+	PhysicalWidth = Width + 2;
+	PhysicalHeight = Height + 2;
+	const int32 PhysicalNumCells = PhysicalWidth * PhysicalHeight;
+
+	// Allocate physical board (includes padding)
+	Tiles.SetNum(PhysicalNumCells);
+
+	// Initialize all tiles to empty first (including padding)
+	for (int32 i = 0; i < PhysicalNumCells; ++i)
+	{
+		Tiles[i].TileTypeId = INDEX_NONE;
+		Tiles[i].bEmpty = true;
+	}
 
 	// Each pair occupies 2 cells.
 	const int32 NumPairs = NumCells / 2;
@@ -64,11 +77,17 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
 		}
 	}
 
-	// Populate Tiles from shuffled TypeBag
-	for (int32 i = 0; i < NumCells; ++i)
+	// Populate only the inner logical region (skip padding)
+	int32 BagIndex = 0;
+	for (int32 LogicY = 0; LogicY < Height; ++LogicY)
 	{
-		Tiles[i].TileTypeId = TypeBag[i];
-		Tiles[i].bEmpty = false;
+		for (int32 LogicX = 0; LogicX < Width; ++LogicX)
+		{
+			const int32 PhysIndex = LogicalToPhysicalIndex(LogicX, LogicY);
+			Tiles[PhysIndex].TileTypeId = TypeBag[BagIndex];
+			Tiles[PhysIndex].bEmpty = false;
+			BagIndex++;
+		}
 	}
 
 	// Reset selection state
@@ -79,7 +98,8 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
 	OnBoardChanged.Broadcast();
 	OnSelectionChanged.Broadcast(false, FirstSelection);
 
-	UE_LOG(LogTemp, Log, TEXT("Board initialized: %dx%d with %d unique tile types."), Width, Height, NumUniqueTypes);
+	UE_LOG(LogTemp, Log, TEXT("Board initialized: %dx%d (physical: %dx%d) with %d unique tile types."),
+		Width, Height, PhysicalWidth, PhysicalHeight, NumUniqueTypes);
 }
 
 /**
@@ -92,12 +112,15 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
  */
 bool UOnetBoardComponent::GetTile(const int32 X, const int32 Y, FOnetTile& OutTile) const
 {
-	if (X < 0 || X >= Width || Y < 0 || Y >= Height)
+	// Check logical bounds
+	if (!IsInBonds(X, Y))
 	{
 		return false; // Out of bounds
 	}
 
-	OutTile = Tiles[ToIndex(X, Y)];
+	// Convert to physical index and retrieve tile
+	const int32 PhysIndex = LogicalToPhysicalIndex(X, Y);
+	OutTile = Tiles[PhysIndex];
 	return true;
 }
 
@@ -133,14 +156,14 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 		return false;
 	}
 
-	// Check if both tiles are in bounds and not empty.
+	// Check if both tiles are in logical bounds and not empty.
 	if (!IsInBonds(X1, Y1) || !IsInBonds(X2, Y2))
 	{
 		return false;
 	}
 
-	const int32 Index1 = ToIndex(X1, Y1);
-	const int32 Index2 = ToIndex(X2, Y2);
+	const int32 Index1 = LogicalToPhysicalIndex(X1, Y1);
+	const int32 Index2 = LogicalToPhysicalIndex(X2, Y2);
 
 	if (Tiles[Index1].bEmpty || Tiles[Index2].bEmpty)
 	{
@@ -153,13 +176,17 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 		return false;
 	}
 
+	// Convert logical coordinates to physical for pathfinding
+	const FIntPoint PhysStart = LogicalToPhysical(FIntPoint(X1, Y1));
+	const FIntPoint PhysEnd = LogicalToPhysical(FIntPoint(X2, Y2));
+
 	// BFS structure: Position, Direction, Turns, Path
 	struct FPathNode
 	{
-		FIntPoint Position;
+		FIntPoint Position; // Physical coordinates
 		int32 Direction; // 0=Right, 1=Down, 2=Left, 3=Up, -1=Start
 		int32 Turns;
-		TArray<FIntPoint> Path;
+		TArray<FIntPoint> Path; // Physical coordinates
 
 		// Default constructor for TQueue::Dequeue
 		FPathNode()
@@ -184,12 +211,12 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 	TQueue<FPathNode> Queue;
 	TSet<TPair<FIntPoint, int32>> Visited; // (Position, Direction)
 
-	// Start from the first tile in all four directions.
+	// Start from the first tile in all four directions (using physical coordinates).
 	for (int32 Dir = 0; Dir < 4; ++Dir)
 	{
 		TArray<FIntPoint> InitialPath;
-		InitialPath.Add(FIntPoint(X1, Y1));
-		Queue.Enqueue(FPathNode(FIntPoint(X1, Y1), Dir, 0, InitialPath));
+		InitialPath.Add(PhysStart);
+		Queue.Enqueue(FPathNode(PhysStart, Dir, 0, InitialPath));
 	}
 
 	while (!Queue.IsEmpty())
@@ -215,20 +242,25 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 				continue;
 			}
 
-			// Check if next position is in bounds.
-			if (!IsInBonds(NextPos.X, NextPos.Y))
+			// Check if next position is in physical bounds.
+			if (!IsPhysicalInBounds(NextPos.X, NextPos.Y))
 			{
 				continue;
 			}
 
-			const int32 NextIndex = ToIndex(NextPos.X, NextPos.Y);
+			const int32 NextIndex = PhysicalToIndex(NextPos.X, NextPos.Y);
 
 			// Check if we reached the target.
-			if (NextPos.X == X2 && NextPos.Y == Y2)
+			if (NextPos == PhysEnd)
 			{
-				// Found a valid path!
-				TArray<FIntPoint> FinalPath = Current.Path;
-				FinalPath.Add(NextPos);
+				// Found a valid path! Convert back to logical coordinates for UI.
+				TArray<FIntPoint> FinalPath;
+				FinalPath.Reserve(Current.Path.Num() + 1);
+				for (const FIntPoint& PhysPos : Current.Path)
+				{
+					FinalPath.Add(FIntPoint(PhysPos.X - 1, PhysPos.Y - 1)); // Convert to logical
+				}
+				FinalPath.Add(FIntPoint(NextPos.X - 1, NextPos.Y - 1)); // Convert to logical
 				OutPath = FinalPath;
 				return true;
 			}
@@ -266,7 +298,7 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 		return;
 	}
 
-	const int32 Index = ToIndex(X, Y); // Convert (X, Y) to 1D index.
+	const int32 Index = LogicalToPhysicalIndex(X, Y); // Convert logical (X, Y) to physical index.
 
 	// Checking an empty tile does nothing.
 	if (Tiles[Index].bEmpty)
@@ -274,7 +306,7 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 		return;
 	}
 
-	// Record clicked position.
+	// Record clicked position (in logical coordinates).
 	const FIntPoint Clicked(X, Y);
 
 	// State machine: first click selects, second click attempts match.
@@ -310,8 +342,8 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 		// Broadcast match successful event with the path for animation.
 		OnMatchSuccessful.Broadcast(Path);
 
-		// Remove the matched tiles.
-		Tiles[ToIndex(FirstSelection.X, FirstSelection.Y)].bEmpty = true;
+		// Remove the matched tiles (convert logical coords to physical index).
+		Tiles[LogicalToPhysicalIndex(FirstSelection.X, FirstSelection.Y)].bEmpty = true;
 		Tiles[Index].bEmpty = true;
 
 		// Notify UI to refresh.
