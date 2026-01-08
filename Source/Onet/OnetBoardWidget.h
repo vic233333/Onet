@@ -23,15 +23,23 @@ public:
 	// Inject board logic component into this UI.
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	void InitializeWithBoard(UOnetBoardComponent* InBoard);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	void RebuildGrid();
 
 protected:
 	virtual void NativeOnInitialized() override;
-	
+
 	// Override to handle mouse button down events for background clicks.
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+
+	// Size of each tile (in pixels). Tiles will be square.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Onet|UI")
+	float TileSize = 80.0f;
+
+	// Padding between tiles (in pixels).
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Onet|UI")
+	float TilePadding = 4.0f;
 
 private:
 	// BindWidget requires a UniformGridPanel named exactly "GridPanel" in WBP_OnetBoard.
@@ -41,14 +49,6 @@ private:
 	// Tile widget class to instantiate per cell (assigned in WBP_OnetBoard).
 	UPROPERTY(EditDefaultsOnly, Category="Onet|UI")
 	TSubclassOf<UOnetTileWidget> TileWidgetClass;
-
-	// Size of each tile (in pixels). Tiles will be square.
-	UPROPERTY(EditDefaultsOnly, Category="Onet|UI")
-	float TileSize = 80.0f;
-
-	// Padding between tiles (in pixels).
-	UPROPERTY(EditDefaultsOnly, Category="Onet|UI")
-	float TilePadding = 4.0f;
 
 	// Logic reference.
 	UPROPERTY()
