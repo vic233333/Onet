@@ -50,6 +50,32 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnetMatchSuccessful, const TArray<F
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnetMatchFailed);
 
 /**
+ * Shuffle performed event: notifies listeners when a shuffle occurs.
+ * RemainingUses tells UI how many manual/auto shuffles are left.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnetShufflePerformed, int32, RemainingUses, bool, bAutoTriggered);
+
+/**
+ * Hint event: broadcast when a hint is generated or cleared.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnetHintUpdated, bool, bHasHint, FIntPoint, First, FIntPoint, Second);
+
+/**
+ * Wild link primed state change.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnetWildStateChanged, bool, bWildReady);
+
+/**
+ * Board cleared event: fired when all tiles are removed.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnetBoardCleared);
+
+/**
+ * Deadlock event when no moves remain and no shuffle charges are left.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnetNoMovesRemain);
+
+/**
  * Board component that contains the game logic for Onet.
  * 
  * Responsibilities:
@@ -99,6 +125,34 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	bool CanLink(int32 X1, int32 Y1, int32 X2, int32 Y2, TArray<FIntPoint>& OutPath) const;
 
+	// Shuffle remaining tiles. Consumes one of the limited charges (auto or manual).
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	bool RequestShuffle();
+
+	// Generate and broadcast a hint pair (if available).
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	bool RequestHint();
+
+	// Prime a wild link so the next valid pair of identical tiles ignores path rules.
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	bool ActivateWildLink();
+
+	// Remaining manual/auto shuffles.
+	UFUNCTION(BlueprintPure, Category = "Onet|Board")
+	int32 GetRemainingShuffleUses() const { return RemainingShuffleUses; }
+
+	// Maximum shuffles allowed per game.
+	UFUNCTION(BlueprintPure, Category = "Onet|Board")
+	int32 GetMaxShuffleUses() const { return MaxShuffleUses; }
+
+	// Whether the wild link is primed for the next match.
+	UFUNCTION(BlueprintPure, Category = "Onet|Board")
+	bool IsWildLinkPrimed() const { return bWildLinkPrimed; }
+
+	// Query the current hint pair (if any).
+	UFUNCTION(BlueprintPure, Category = "Onet|Board")
+	bool HasActiveHint(FIntPoint& OutFirst, FIntPoint& OutSecond) const;
+
 	// Fired when the board changes (tiles removed, etc.)
 	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
 	FOnetBoardChanged OnBoardChanged;
@@ -114,6 +168,26 @@ public:
 	// Fired when match attempt fails.
 	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
 	FOnetMatchFailed OnMatchFailed;
+
+	// Fired whenever a shuffle happens (manual or auto).
+	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
+	FOnetShufflePerformed OnShufflePerformed;
+
+	// Fired when hint pair is generated or cleared.
+	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
+	FOnetHintUpdated OnHintUpdated;
+
+	// Fired when wild link primed state changes.
+	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
+	FOnetWildStateChanged OnWildStateChanged;
+
+	// Fired when all tiles have been cleared.
+	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
+	FOnetBoardCleared OnBoardCleared;
+
+	// Fired when no moves remain and no shuffle charges are left.
+	UPROPERTY(BlueprintAssignable, Category = "Onet|Board")
+	FOnetNoMovesRemain OnNoMovesRemain;
 
 private:
 	// Logical dimensions (what UI sees)
@@ -150,6 +224,24 @@ private:
 	// Flag to prevent new selections while processing a match.
 	bool bIsProcessingMatch = false;
 
+	// Max shuffle uses per game (manual + auto).
+	UPROPERTY(EditAnywhere, Category = "Onet|Board")
+	int32 MaxShuffleUses = 3;
+
+	// Remaining shuffle charges.
+	int32 RemainingShuffleUses = 0;
+
+	// Wild link primed flag.
+	bool bWildLinkPrimed = false;
+
+	// Current hint pair.
+	bool bHasHintPair = false;
+	FIntPoint HintTileA = FIntPoint(-1, -1);
+	FIntPoint HintTileB = FIntPoint(-1, -1);
+
+	// Guard to avoid recursive deadlock checks.
+	bool bResolvingDeadlock = false;
+
 	// Convert logical coordinate to physical coordinate (add padding offset)
 	FIntPoint LogicalToPhysical(const FIntPoint& Logical) const
 	{
@@ -182,4 +274,19 @@ private:
 
 	// Called by timer to actually remove the matched tiles.
 	void RemoveMatchedTiles();
+
+	// Shuffle tiles implementation.
+	bool ShuffleInternal(bool bAutoTriggered);
+
+	// Check whether the board has any valid moves; auto-shuffle if allowed.
+	void CheckForDeadlockAndShuffleIfNeeded();
+
+	// Search the board for any valid match.
+	bool FindFirstAvailableMatch(FIntPoint& OutTileA, FIntPoint& OutTileB, TArray<FIntPoint>& OutPath) const;
+
+	// Clear cached hint state and notify UI if needed.
+	void ClearHintState();
+
+	// Return true if all logical tiles are empty.
+	bool IsBoardCleared() const;
 };

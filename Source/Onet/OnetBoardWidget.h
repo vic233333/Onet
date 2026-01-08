@@ -10,6 +10,9 @@
 class UUniformGridPanel;
 class UUniformGridComponent;
 class UOnetTileWidget;
+class UButton;
+class UTextBlock;
+class UUserWidget;
 
 /**
  * 
@@ -66,6 +69,27 @@ private:
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UUniformGridPanel> GridPanel;
 
+	// Optional action buttons (placed in WBP_OnetBoard).
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> ShuffleButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> WildLinkButton;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UButton> HintButton;
+
+	// Optional text to show shuffle uses.
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ShuffleCountText;
+
+	// Optional completion screen class.
+	UPROPERTY(EditDefaultsOnly, Category = "Onet|UI")
+	TSubclassOf<UUserWidget> CompletionWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> CompletionWidget;
+
 	// Tile widget class to instantiate per cell (assigned in WBP_OnetBoard).
 	UPROPERTY(EditDefaultsOnly, Category="Onet|UI")
 	TSubclassOf<UOnetTileWidget> TileWidgetClass;
@@ -83,6 +107,16 @@ private:
 	int32 SelectedY = -1;
 	bool bHasSelection = false;
 
+	// Hint highlight state.
+	bool bHasHintTiles = false;
+	FIntPoint HintTileA = FIntPoint(-1, -1);
+	FIntPoint HintTileB = FIntPoint(-1, -1);
+
+	// Cached action state.
+	int32 CachedRemainingShuffles = 0;
+	int32 CachedMaxShuffles = 0;
+	bool bWildLinkPrimed = false;
+
 	// Path drawing state.
 	bool bShowPath = false;
 	TArray<FIntPoint> ActivePathGridPoints;
@@ -90,6 +124,8 @@ private:
 
 private:
 	void RefreshAllTiles();
+	void UpdateActionButtons();
+	void ShowCompletionScreen();
 
 	// Draw the connection path (called from C++, not Blueprint).
 	void DrawConnectionPath(const TArray<FIntPoint>& Path);
@@ -114,4 +150,28 @@ private:
 
 	UFUNCTION()
 	void HandleMatchFailed();
+
+	UFUNCTION()
+	void HandleShuffleClicked();
+
+	UFUNCTION()
+	void HandleWildLinkClicked();
+
+	UFUNCTION()
+	void HandleHintClicked();
+
+	UFUNCTION()
+	void HandleShuffleUpdated(int32 RemainingUses, bool bAutoTriggered);
+
+	UFUNCTION()
+	void HandleHintUpdated(bool bHasHint, FIntPoint First, FIntPoint Second);
+
+	UFUNCTION()
+	void HandleWildStateChanged(bool bWildReady);
+
+	UFUNCTION()
+	void HandleBoardCleared();
+
+	UFUNCTION()
+	void HandleNoMovesRemain();
 };

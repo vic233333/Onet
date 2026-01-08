@@ -60,7 +60,8 @@ void UOnetTileWidget::HandleButtonClicked()
  * @param TileTypeId - The type identifier of the tile.
  * @param bIsSelected - Whether the tile is currently selected.
  */
-void UOnetTileWidget::SetTileVisual(const bool bIsEmpty, const int32 TileTypeId, bool bIsSelected) const
+void UOnetTileWidget::SetTileVisual(const bool bIsEmpty, const int32 TileTypeId, bool bIsSelected,
+                                    const bool bIsHint) const
 {
 	// Hide empty tiles completely.
 	if (bIsEmpty)
@@ -81,7 +82,8 @@ void UOnetTileWidget::SetTileVisual(const bool bIsEmpty, const int32 TileTypeId,
 		// Highlight selected tiles.
 		if (!bIsEmpty)
 		{
-			TileButton->SetBackgroundColor(bIsSelected ? SelectedColor : NormalColor);
+			const bool bUseHintColor = bIsHint && !bIsSelected;
+			TileButton->SetBackgroundColor(bIsSelected ? SelectedColor : (bUseHintColor ? HintColor : NormalColor));
 		}
 	}
 

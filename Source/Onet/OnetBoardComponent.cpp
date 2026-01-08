@@ -2,6 +2,8 @@
 
 
 #include "OnetBoardComponent.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 UOnetBoardComponent::UOnetBoardComponent()
 {
@@ -94,12 +96,20 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
 	bHasFirstSelection = false;
 	FirstSelection = FIntPoint(-1, -1);
 
+	// Reset utility states.
+	RemainingShuffleUses = MaxShuffleUses;
+	bWildLinkPrimed = false;
+	ClearHintState();
+
 	// Notify listeners (UI) to build/refresh.
 	OnBoardChanged.Broadcast();
 	OnSelectionChanged.Broadcast(false, FirstSelection);
 
 	UE_LOG(LogTemp, Log, TEXT("Board initialized: %dx%d (physical: %dx%d) with %d unique tile types."),
 		Width, Height, PhysicalWidth, PhysicalHeight, NumUniqueTypes);
+
+	// Ensure the starting layout has available moves (auto shuffle if needed).
+	CheckForDeadlockAndShuffleIfNeeded();
 }
 
 /**
@@ -122,6 +132,65 @@ bool UOnetBoardComponent::GetTile(const int32 X, const int32 Y, FOnetTile& OutTi
 	const int32 PhysIndex = LogicalToPhysicalIndex(X, Y);
 	OutTile = Tiles[PhysIndex];
 	return true;
+}
+
+bool UOnetBoardComponent::RequestShuffle()
+{
+	const bool bResult = ShuffleInternal(false);
+	if (bResult)
+	{
+		CheckForDeadlockAndShuffleIfNeeded();
+	}
+	return bResult;
+}
+
+bool UOnetBoardComponent::RequestHint()
+{
+	if (bIsProcessingMatch || IsBoardCleared())
+	{
+		return false;
+	}
+
+	ClearHintState();
+
+	FIntPoint TileA;
+	FIntPoint TileB;
+	TArray<FIntPoint> Path;
+	if (FindFirstAvailableMatch(TileA, TileB, Path))
+	{
+		bHasHintPair = true;
+		HintTileA = TileA;
+		HintTileB = TileB;
+		OnHintUpdated.Broadcast(true, HintTileA, HintTileB);
+		return true;
+	}
+
+	OnHintUpdated.Broadcast(false, FIntPoint(-1, -1), FIntPoint(-1, -1));
+	return false;
+}
+
+bool UOnetBoardComponent::ActivateWildLink()
+{
+	if (IsBoardCleared())
+	{
+		return false;
+	}
+
+	if (bWildLinkPrimed)
+	{
+		return true;
+	}
+
+	bWildLinkPrimed = true;
+	OnWildStateChanged.Broadcast(true);
+	return true;
+}
+
+bool UOnetBoardComponent::HasActiveHint(FIntPoint& OutFirst, FIntPoint& OutSecond) const
+{
+	OutFirst = HintTileA;
+	OutSecond = HintTileB;
+	return bHasHintPair;
 }
 
 /**
@@ -337,7 +406,25 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 
 	// Check if the two tiles can be linked.
 	TArray<FIntPoint> Path;
-	const bool bCanLink = CanLink(FirstSelection.X, FirstSelection.Y, X, Y, Path);
+	bool bCanLink = false;
+	bool bConsumedWild = false;
+
+	const int32 FirstIndex = LogicalToPhysicalIndex(FirstSelection.X, FirstSelection.Y);
+	const int32 SecondIndex = Index;
+	const bool bTilesMatch = Tiles[FirstIndex].TileTypeId == Tiles[SecondIndex].TileTypeId;
+
+	if (bWildLinkPrimed && bTilesMatch)
+	{
+		// Wild link ignores pathfinding rules for a matching pair.
+		Path.Add(FirstSelection);
+		Path.Add(Clicked);
+		bCanLink = true;
+		bConsumedWild = true;
+	}
+	else
+	{
+		bCanLink = CanLink(FirstSelection.X, FirstSelection.Y, X, Y, Path);
+	}
 
 	if (bCanLink)
 	{
@@ -364,6 +451,12 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 				TileRemovalDelay,
 				false
 			);
+		}
+
+		if (bConsumedWild)
+		{
+			bWildLinkPrimed = false;
+			OnWildStateChanged.Broadcast(false);
 		}
 	}
 	else
@@ -401,8 +494,234 @@ void UOnetBoardComponent::RemoveMatchedTiles()
 	// Clear processing flag to allow new clicks.
 	bIsProcessingMatch = false;
 
+	// Clear any pending hint since board state changed.
+	ClearHintState();
+
 	// Notify UI to refresh and hide the tiles.
 	OnBoardChanged.Broadcast();
 
 	UE_LOG(LogTemp, Log, TEXT("Matched tiles removed."));
+
+	if (IsBoardCleared())
+	{
+		OnBoardCleared.Broadcast();
+	}
+	else
+	{
+		CheckForDeadlockAndShuffleIfNeeded();
+	}
+}
+
+bool UOnetBoardComponent::ShuffleInternal(const bool bAutoTriggered)
+{
+	if (Width <= 0 || Height <= 0 || Tiles.Num() == 0)
+	{
+		return false;
+	}
+
+	if (RemainingShuffleUses <= 0)
+	{
+		return false;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TileRemovalTimerHandle);
+	}
+
+	bIsProcessingMatch = false;
+	bHasFirstSelection = false;
+	FirstSelection = FIntPoint(-1, -1);
+	PendingRemovalTile1 = FIntPoint(-1, -1);
+	PendingRemovalTile2 = FIntPoint(-1, -1);
+
+	ClearHintState();
+
+	// Collect remaining tile types and logical slots.
+	TArray<int32> RemainingTypes;
+	TArray<FIntPoint> LogicalSlots;
+	RemainingTypes.Reserve(Width * Height);
+	LogicalSlots.Reserve(Width * Height);
+
+	for (int32 LogicY = 0; LogicY < Height; ++LogicY)
+	{
+		for (int32 LogicX = 0; LogicX < Width; ++LogicX)
+		{
+			const int32 PhysIndex = LogicalToPhysicalIndex(LogicX, LogicY);
+			if (!Tiles[PhysIndex].bEmpty)
+			{
+				RemainingTypes.Add(Tiles[PhysIndex].TileTypeId);
+			}
+
+			// Reset tile to empty before reassigning.
+			Tiles[PhysIndex].TileTypeId = INDEX_NONE;
+			Tiles[PhysIndex].bEmpty = true;
+			LogicalSlots.Add(FIntPoint(LogicX, LogicY));
+		}
+	}
+
+	// Shuffle types and slot order.
+	for (int32 i = RemainingTypes.Num() - 1; i > 0; --i)
+	{
+		const int32 SwapIndex = FMath::RandRange(0, i);
+		if (i != SwapIndex)
+		{
+			RemainingTypes.Swap(i, SwapIndex);
+		}
+	}
+
+	for (int32 i = LogicalSlots.Num() - 1; i > 0; --i)
+	{
+		const int32 SwapIndex = FMath::RandRange(0, i);
+		if (i != SwapIndex)
+		{
+			LogicalSlots.Swap(i, SwapIndex);
+		}
+	}
+
+	// Refill board.
+	const int32 NumToPlace = FMath::Min(RemainingTypes.Num(), LogicalSlots.Num());
+	for (int32 i = 0; i < NumToPlace; ++i)
+	{
+		const FIntPoint& Slot = LogicalSlots[i];
+		const int32 PhysIndex = LogicalToPhysicalIndex(Slot.X, Slot.Y);
+		Tiles[PhysIndex].TileTypeId = RemainingTypes[i];
+		Tiles[PhysIndex].bEmpty = false;
+	}
+
+	RemainingShuffleUses = FMath::Max(0, RemainingShuffleUses - 1);
+
+	// Notify UI.
+	OnBoardChanged.Broadcast();
+	OnSelectionChanged.Broadcast(false, FIntPoint(-1, -1));
+	OnShufflePerformed.Broadcast(RemainingShuffleUses, bAutoTriggered);
+
+	UE_LOG(LogTemp, Log, TEXT("Shuffle performed. Remaining: %d (auto: %s)"), RemainingShuffleUses,
+		bAutoTriggered ? TEXT("true") : TEXT("false"));
+
+	return true;
+}
+
+void UOnetBoardComponent::CheckForDeadlockAndShuffleIfNeeded()
+{
+	if (bResolvingDeadlock || IsBoardCleared())
+	{
+		return;
+	}
+
+	// Local guard to restore flag when scope exits.
+	struct FResolveGuard
+	{
+		bool& Ref;
+		bool Prev;
+		explicit FResolveGuard(bool& InRef)
+			: Ref(InRef)
+			, Prev(InRef)
+		{
+			Ref = true;
+		}
+
+		~FResolveGuard()
+		{
+			Ref = Prev;
+		}
+	} ResolveGuard(bResolvingDeadlock);
+
+	while (!IsBoardCleared())
+	{
+		FIntPoint TileA;
+		FIntPoint TileB;
+		TArray<FIntPoint> Path;
+		if (FindFirstAvailableMatch(TileA, TileB, Path))
+		{
+			break; // At least one move exists.
+		}
+
+		if (!ShuffleInternal(true))
+		{
+			OnNoMovesRemain.Broadcast();
+			break;
+		}
+	}
+}
+
+bool UOnetBoardComponent::FindFirstAvailableMatch(FIntPoint& OutTileA, FIntPoint& OutTileB,
+                                                  TArray<FIntPoint>& OutPath) const
+{
+	OutTileA = FIntPoint(-1, -1);
+	OutTileB = FIntPoint(-1, -1);
+	OutPath.Empty();
+
+	if (Width <= 0 || Height <= 0 || IsBoardCleared())
+	{
+		return false;
+	}
+
+	// Group tiles by type to minimize checks.
+	TMap<int32, TArray<FIntPoint>> TilesByType;
+	for (int32 LogicY = 0; LogicY < Height; ++LogicY)
+	{
+		for (int32 LogicX = 0; LogicX < Width; ++LogicX)
+		{
+			const int32 PhysIndex = LogicalToPhysicalIndex(LogicX, LogicY);
+			if (!Tiles[PhysIndex].bEmpty)
+			{
+				TilesByType.FindOrAdd(Tiles[PhysIndex].TileTypeId).Add(FIntPoint(LogicX, LogicY));
+			}
+		}
+	}
+
+	for (const TPair<int32, TArray<FIntPoint>>& Entry : TilesByType)
+	{
+		const TArray<FIntPoint>& Positions = Entry.Value;
+		for (int32 i = 0; i < Positions.Num(); ++i)
+		{
+			for (int32 j = i + 1; j < Positions.Num(); ++j)
+			{
+				TArray<FIntPoint> CandidatePath;
+				if (CanLink(Positions[i].X, Positions[i].Y, Positions[j].X, Positions[j].Y, CandidatePath))
+				{
+					OutTileA = Positions[i];
+					OutTileB = Positions[j];
+					OutPath = CandidatePath;
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+void UOnetBoardComponent::ClearHintState()
+{
+	if (bHasHintPair)
+	{
+		bHasHintPair = false;
+		HintTileA = FIntPoint(-1, -1);
+		HintTileB = FIntPoint(-1, -1);
+		OnHintUpdated.Broadcast(false, HintTileA, HintTileB);
+	}
+}
+
+bool UOnetBoardComponent::IsBoardCleared() const
+{
+	if (Width <= 0 || Height <= 0)
+	{
+		return true;
+	}
+
+	for (int32 LogicY = 0; LogicY < Height; ++LogicY)
+	{
+		for (int32 LogicX = 0; LogicX < Width; ++LogicX)
+		{
+			const int32 PhysIndex = LogicalToPhysicalIndex(LogicX, LogicY);
+			if (!Tiles[PhysIndex].bEmpty)
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
 }

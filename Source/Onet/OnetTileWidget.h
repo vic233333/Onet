@@ -33,7 +33,7 @@ public:
 
 	// Update visuals based on board data.
 	UFUNCTION(BlueprintCallable, Category = "Onet|Tile")
-	void SetTileVisual(bool bIsEmpty, int32 TileTypeId, bool bIsSelected) const;
+	void SetTileVisual(bool bIsEmpty, int32 TileTypeId, bool bIsSelected, bool bIsHint) const;
 
 	// UI event for parent widget to subscribe to.
 	UPROPERTY(BlueprintAssignable, Category="Onet|Events")
@@ -64,6 +64,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category="Onet|Tile")
 	FLinearColor SelectedColor = FLinearColor(1.0f, 1.0f, 0.0f, 1.0f); // Yellow highlight
+
+	UPROPERTY(EditDefaultsOnly, Category = "Onet|Tile")
+	FLinearColor HintColor = FLinearColor(0.5f, 0.8f, 1.0f, 1.0f);
 
 	int32 X = -1;
 	int32 Y = -1;

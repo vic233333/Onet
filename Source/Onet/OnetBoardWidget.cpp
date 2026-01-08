@@ -4,14 +4,33 @@
 #include "OnetBoardWidget.h"
 #include "OnetBoardComponent.h"
 #include "OnetTileWidget.h"
+#include "Components/Button.h"
+#include "Components/TextBlock.h"
 #include "Components/UniformGridPanel.h"
 #include "Components/UniformGridSlot.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
+#include "GameFramework/PlayerController.h"
 
 void UOnetBoardWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
+
+	if (ShuffleButton)
+	{
+		ShuffleButton->OnClicked.AddDynamic(this, &UOnetBoardWidget::HandleShuffleClicked);
+	}
+
+	if (WildLinkButton)
+	{
+		WildLinkButton->OnClicked.AddDynamic(this, &UOnetBoardWidget::HandleWildLinkClicked);
+	}
+
+	if (HintButton)
+	{
+		HintButton->OnClicked.AddDynamic(this, &UOnetBoardWidget::HandleHintClicked);
+	}
 }
 
 void UOnetBoardWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
@@ -107,14 +126,35 @@ void UOnetBoardWidget::InitializeWithBoard(UOnetBoardComponent* InBoard)
 		return;
 	}
 
+	if (CompletionWidget)
+	{
+		CompletionWidget->RemoveFromParent();
+		CompletionWidget = nullptr;
+	}
+
 	// Subscribe to board events so UI updates can be event-driven.
 	Board->OnBoardChanged.AddDynamic(this, &UOnetBoardWidget::HandleBoardChanged);
 	Board->OnSelectionChanged.AddDynamic(this, &UOnetBoardWidget::HandleSelectionChanged);
 	Board->OnMatchSuccessful.AddDynamic(this, &UOnetBoardWidget::HandleMatchSuccessful);
 	Board->OnMatchFailed.AddDynamic(this, &UOnetBoardWidget::HandleMatchFailed);
+	Board->OnShufflePerformed.AddDynamic(this, &UOnetBoardWidget::HandleShuffleUpdated);
+	Board->OnHintUpdated.AddDynamic(this, &UOnetBoardWidget::HandleHintUpdated);
+	Board->OnWildStateChanged.AddDynamic(this, &UOnetBoardWidget::HandleWildStateChanged);
+	Board->OnBoardCleared.AddDynamic(this, &UOnetBoardWidget::HandleBoardCleared);
+	Board->OnNoMovesRemain.AddDynamic(this, &UOnetBoardWidget::HandleNoMovesRemain);
+
+	CachedRemainingShuffles = Board->GetRemainingShuffleUses();
+	CachedMaxShuffles = Board->GetMaxShuffleUses();
+	bWildLinkPrimed = Board->IsWildLinkPrimed();
+	FIntPoint ExistingHintA;
+	FIntPoint ExistingHintB;
+	bHasHintTiles = Board->HasActiveHint(ExistingHintA, ExistingHintB);
+	HintTileA = ExistingHintA;
+	HintTileB = ExistingHintB;
 
 	RebuildGrid();
 	RefreshAllTiles();
+	UpdateActionButtons();
 }
 
 void UOnetBoardWidget::RebuildGrid()
@@ -183,12 +223,68 @@ void UOnetBoardWidget::RefreshAllTiles()
 			}
 
 			const bool bIsSelected = bHasSelection && (X == SelectedX) && (Y == SelectedY);
+			const bool bIsHintTile = bHasHintTiles && ((X == HintTileA.X && Y == HintTileA.Y) ||
+				(X == HintTileB.X && Y == HintTileB.Y));
 
 			if (UOnetTileWidget* TileWidget = TileWidgets[Y * W + X])
 			{
-				TileWidget->SetTileVisual(TileData.bEmpty, TileData.TileTypeId, bIsSelected);
+				TileWidget->SetTileVisual(TileData.bEmpty, TileData.TileTypeId, bIsSelected, bIsHintTile);
 			}
 		}
+	}
+}
+
+void UOnetBoardWidget::UpdateActionButtons()
+{
+	if (Board)
+	{
+		CachedRemainingShuffles = Board->GetRemainingShuffleUses();
+		CachedMaxShuffles = Board->GetMaxShuffleUses();
+	}
+
+	const int32 DisplayMax = CachedMaxShuffles > 0 ? CachedMaxShuffles : FMath::Max(CachedRemainingShuffles, 0);
+
+	if (ShuffleButton)
+	{
+		ShuffleButton->SetIsEnabled(Board != nullptr && CachedRemainingShuffles > 0);
+	}
+
+	if (ShuffleCountText)
+	{
+		ShuffleCountText->SetText(FText::Format(
+			NSLOCTEXT("Onet", "ShuffleCountLabel", "Shuffle {0}/{1}"),
+			FText::AsNumber(CachedRemainingShuffles),
+			FText::AsNumber(DisplayMax)));
+	}
+
+	if (WildLinkButton)
+	{
+		WildLinkButton->SetIsEnabled(Board != nullptr && !bWildLinkPrimed);
+	}
+
+	if (HintButton)
+	{
+		HintButton->SetIsEnabled(Board != nullptr);
+	}
+}
+
+void UOnetBoardWidget::ShowCompletionScreen()
+{
+	if (!CompletionWidget && CompletionWidgetClass)
+	{
+		if (APlayerController* PC = GetOwningPlayer())
+		{
+			CompletionWidget = CreateWidget<UUserWidget>(PC, CompletionWidgetClass);
+			if (CompletionWidget)
+			{
+				CompletionWidget->AddToViewport(100);
+			}
+		}
+	}
+
+	if (!CompletionWidget && GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("关卡完成！"));
 	}
 }
 
@@ -211,6 +307,7 @@ void UOnetBoardWidget::HandleBoardChanged()
 	}
 
 	RefreshAllTiles();
+	UpdateActionButtons();
 }
 
 void UOnetBoardWidget::HandleSelectionChanged(const bool bHasFirstSelection, const FIntPoint FirstSelection)
@@ -232,6 +329,78 @@ void UOnetBoardWidget::HandleMatchFailed()
 {
 	// TODO: Add visual feedback for failed match (e.g., screen shake, sound).
 	UE_LOG(LogTemp, Warning, TEXT("Match failed!"));
+}
+
+void UOnetBoardWidget::HandleShuffleClicked()
+{
+	if (Board)
+	{
+		Board->RequestShuffle();
+	}
+}
+
+void UOnetBoardWidget::HandleWildLinkClicked()
+{
+	if (Board)
+	{
+		Board->ActivateWildLink();
+	}
+}
+
+void UOnetBoardWidget::HandleHintClicked()
+{
+	if (Board)
+	{
+		Board->RequestHint();
+	}
+}
+
+void UOnetBoardWidget::HandleShuffleUpdated(int32 RemainingUses, bool bAutoTriggered)
+{
+	CachedRemainingShuffles = RemainingUses;
+	if (Board)
+	{
+		CachedMaxShuffles = Board->GetMaxShuffleUses();
+	}
+	UpdateActionButtons();
+
+	if (bAutoTriggered && GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow, TEXT("A dead end has been detected; the deck has been automatically shuffled."));
+	}
+}
+
+void UOnetBoardWidget::HandleHintUpdated(bool bHasHint, FIntPoint First, FIntPoint Second)
+{
+	bHasHintTiles = bHasHint;
+	HintTileA = First;
+	HintTileB = Second;
+	RefreshAllTiles();
+}
+
+void UOnetBoardWidget::HandleWildStateChanged(bool bWildReady)
+{
+	bWildLinkPrimed = bWildReady;
+	UpdateActionButtons();
+}
+
+void UOnetBoardWidget::HandleBoardCleared()
+{
+	bHasHintTiles = false;
+	bWildLinkPrimed = false;
+	RefreshAllTiles();
+	UpdateActionButtons();
+	ShowCompletionScreen();
+}
+
+void UOnetBoardWidget::HandleNoMovesRemain()
+{
+	UpdateActionButtons();
+
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("No moves available and no more shuffles."));
+	}
 }
 
 FVector2D UOnetBoardWidget::GridToScreenPosition(const FIntPoint& GridCoord) const
