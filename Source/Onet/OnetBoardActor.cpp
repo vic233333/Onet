@@ -7,13 +7,15 @@
 
 AOnetBoardActor::AOnetBoardActor()
 {
-	PrimaryActorTick.bCanEverTick = false; // The actor does not need to tick every frame since it will listen to events.
-	
+	PrimaryActorTick.bCanEverTick = false;
+	// The actor does not need to tick every frame since it will listen to events.
+
 	// Always provide a root component for Actor transforms and editor stability.
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root")); // Create a scene component to serve as the root.
 	SetRootComponent(Root);
-	
-	UE_LOG(LogTemp, Display, TEXT("AOnetBoardActor: Creating BoardComponent.")); // Log when creating the board component.
+
+	UE_LOG(LogTemp, Display, TEXT("AOnetBoardActor: Creating BoardComponent."));
+	// Log when creating the board component.
 	BoardComponent = CreateDefaultSubobject<UOnetBoardComponent>(TEXT("BoardComponent"));
 }
 

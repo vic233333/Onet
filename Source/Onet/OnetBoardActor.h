@@ -27,7 +27,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	UOnetBoardComponent* GetBoardComponent() const
 	{
-		UE_LOG(LogTemp, Display, TEXT("AOnetBoardActor::GetBoardComponent called.")); // Log when the function is called.
+		UE_LOG(LogTemp, Display, TEXT("AOnetBoardActor::GetBoardComponent called."));
+		// Log when the function is called.
 		return BoardComponent; // The return is a pointer to the board component.
 	}
 

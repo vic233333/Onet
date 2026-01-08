@@ -106,7 +106,7 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
 	OnSelectionChanged.Broadcast(false, FirstSelection);
 
 	UE_LOG(LogTemp, Log, TEXT("Board initialized: %dx%d (physical: %dx%d) with %d unique tile types."),
-		Width, Height, PhysicalWidth, PhysicalHeight, NumUniqueTypes);
+	       Width, Height, PhysicalWidth, PhysicalHeight, NumUniqueTypes);
 
 	// Ensure the starting layout has available moves (auto shuffle if needed).
 	CheckForDeadlockAndShuffleIfNeeded();
@@ -215,7 +215,8 @@ void UOnetBoardComponent::ClearSelection()
  * @param OutPath - Output parameter to receive the path points.
  * @return True if a valid path exists with at most 2 turns.
  */
-bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2, const int32 Y2, TArray<FIntPoint>& OutPath) const
+bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2, const int32 Y2,
+                                  TArray<FIntPoint>& OutPath) const
 {
 	OutPath.Empty();
 
@@ -271,10 +272,10 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 
 	// Direction vectors: Right, Down, Left, Up
 	const FIntPoint Directions[] = {
-		FIntPoint(1, 0),   // Right
-		FIntPoint(0, 1),   // Down
-		FIntPoint(-1, 0),  // Left
-		FIntPoint(0, -1)   // Up
+		FIntPoint(1, 0), // Right
+		FIntPoint(0, 1), // Down
+		FIntPoint(-1, 0), // Left
+		FIntPoint(0, -1) // Up
 	};
 
 	TQueue<FPathNode> Queue;
@@ -597,7 +598,7 @@ bool UOnetBoardComponent::ShuffleInternal(const bool bAutoTriggered)
 	OnShufflePerformed.Broadcast(RemainingShuffleUses, bAutoTriggered);
 
 	UE_LOG(LogTemp, Log, TEXT("Shuffle performed. Remaining: %d (auto: %s)"), RemainingShuffleUses,
-		bAutoTriggered ? TEXT("true") : TEXT("false"));
+	       bAutoTriggered ? TEXT("true") : TEXT("false"));
 
 	return true;
 }
@@ -614,9 +615,10 @@ void UOnetBoardComponent::CheckForDeadlockAndShuffleIfNeeded()
 	{
 		bool& Ref;
 		bool Prev;
+
 		explicit FResolveGuard(bool& InRef)
 			: Ref(InRef)
-			, Prev(InRef)
+			  , Prev(InRef)
 		{
 			Ref = true;
 		}

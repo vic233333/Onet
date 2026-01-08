@@ -29,7 +29,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	void RebuildGrid();
-	
+
 	// Convert grid coordinate to screen position (top-left of tile).
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Onet|UI")
 	FVector2D GridToScreenPosition(const FIntPoint& GridCoord) const;
@@ -37,8 +37,8 @@ public:
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
-	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, 
-	                          const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, 
+	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
+	                          const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
 	                          int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 	// Override to handle mouse button down events for background clicks.

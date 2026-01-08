@@ -110,7 +110,7 @@ public:
 	// UI uses this to render the board.
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	bool GetTile(int32 X, int32 Y, FOnetTile& OutTile) const;
-	
+
 	// Handle a tile click at (X, Y).
 	// This drives the selection state machine and match logic.
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")

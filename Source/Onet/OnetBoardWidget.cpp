@@ -366,7 +366,9 @@ void UOnetBoardWidget::HandleShuffleUpdated(int32 RemainingUses, bool bAutoTrigg
 
 	if (bAutoTriggered && GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow, TEXT("A dead end has been detected; the deck has been automatically shuffled."));
+		GEngine->AddOnScreenDebugMessage(-1, 2.5f, FColor::Yellow,
+		                                 TEXT(
+			                                 "A dead end has been detected; the deck has been automatically shuffled."));
 	}
 }
 

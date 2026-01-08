@@ -44,7 +44,7 @@ public:
 
 private:
 	float FixedTileSize = 80.0f;
-	
+
 protected:
 	/**
 	 * BindWidget means:
@@ -53,7 +53,7 @@ protected:
 	 */
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> TileButton;
-	
+
 	// Label for debugging (show tileTypedId as a number).
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> LabelText;
@@ -70,7 +70,7 @@ protected:
 
 	int32 X = -1;
 	int32 Y = -1;
-	
+
 	UFUNCTION()
 	void HandleButtonClicked();
 };
