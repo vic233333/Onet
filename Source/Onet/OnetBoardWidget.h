@@ -33,6 +33,10 @@ public:
 
 protected:
 	virtual void NativeOnInitialized() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, 
+	                          const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, 
+	                          int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 	// Override to handle mouse button down events for background clicks.
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -44,6 +48,18 @@ protected:
 	// Padding between tiles (in pixels).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Onet|UI")
 	float TilePadding = 4.0f;
+
+	// Color of the connection line.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Onet|UI")
+	FLinearColor PathColor = FLinearColor::Green;
+
+	// Thickness of the connection line.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Onet|UI")
+	float PathThickness = 4.0f;
+
+	// How long the path is displayed (in seconds).
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Onet|UI")
+	float PathDisplayDuration = 0.5f;
 
 private:
 	// BindWidget requires a UniformGridPanel named exactly "GridPanel" in WBP_OnetBoard.
@@ -67,18 +83,19 @@ private:
 	int32 SelectedY = -1;
 	bool bHasSelection = false;
 
-protected:
-	// Blueprint implementable event for drawing the connection path.
-	// This allows designers to implement custom path drawing and animation in Blueprint.
-	UFUNCTION(BlueprintImplementableEvent, Category = "Onet|UI")
-	void DrawConnectionPath(const TArray<FIntPoint>& Path);
-
-	// Blueprint implementable event for showing match failed feedback.
-	UFUNCTION(BlueprintImplementableEvent, Category = "Onet|UI")
-	void ShowMatchFailedFeedback();
+	// Path drawing state.
+	bool bShowPath = false;
+	TArray<FVector2D> ActivePathPoints;
+	float PathStartTime = 0.0f;
 
 private:
 	void RefreshAllTiles();
+
+	// Draw the connection path (called from C++, not Blueprint).
+	void DrawConnectionPath(const TArray<FIntPoint>& Path);
+
+	// Clear the path after display duration.
+	void ClearPath();
 
 	UFUNCTION()
 	void HandleBoardChanged();

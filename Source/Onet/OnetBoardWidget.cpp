@@ -12,6 +12,58 @@ void UOnetBoardWidget::NativeOnInitialized()
 	Super::NativeOnInitialized();
 }
 
+void UOnetBoardWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// Check if path display duration has elapsed.
+	if (bShowPath)
+	{
+		const float CurrentTime = GetWorld()->GetTimeSeconds();
+		if (CurrentTime - PathStartTime >= PathDisplayDuration)
+		{
+			ClearPath();
+		}
+	}
+}
+
+int32 UOnetBoardWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
+                                     const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+                                     int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
+	// Call parent paint first.
+	int32 Result = Super::NativePaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle,
+	                                  bParentEnabled);
+
+	// Draw the connection path if visible.
+	if (bShowPath && ActivePathPoints.Num() >= 2)
+	{
+		// Draw lines between consecutive points.
+		for (int32 i = 0; i < ActivePathPoints.Num() - 1; ++i)
+		{
+			const FVector2D Start = ActivePathPoints[i];
+			const FVector2D End = ActivePathPoints[i + 1];
+
+			TArray<FVector2D> LinePoints;
+			LinePoints.Add(Start);
+			LinePoints.Add(End);
+
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				LayerId + 1,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				ESlateDrawEffect::None,
+				PathColor,
+				true,
+				PathThickness
+			);
+		}
+	}
+
+	return Result;
+}
+
 /**
  * Handle mouse button down to detect clicks on empty areas.
  * This allows deselecting tiles by clicking on the background.
@@ -152,27 +204,48 @@ void UOnetBoardWidget::HandleSelectionChanged(const bool bHasFirstSelection, con
 
 void UOnetBoardWidget::HandleMatchSuccessful(const TArray<FIntPoint>& Path)
 {
-	// Call the Blueprint implementable event to draw the path.
-	// Designers can implement custom drawing and animation in Blueprint.
+	// Draw the connection path in C++.
 	DrawConnectionPath(Path);
 }
 
 void UOnetBoardWidget::HandleMatchFailed()
 {
-	// Call the Blueprint implementable event to show feedback.
-	ShowMatchFailedFeedback();
+	// TODO: Add visual feedback for failed match (e.g., screen shake, sound).
+	UE_LOG(LogTemp, Warning, TEXT("Match failed!"));
 }
 
 FVector2D UOnetBoardWidget::GridToScreenPosition(const FIntPoint& GridCoord) const
 {
-	// Calculate cell size including padding.
+	// Calculate the total space each cell occupies (tile size + padding).
 	const float CellSize = TileSize + TilePadding;
     
-	// Calculate screen position (center of the tile)
-	// by multiplying grid coordinates with cell size and adding half tile size and padding.
-	// This assumes the grid starts at (0,0) in screen space.
+	// Calculate the center of the cell in screen coordinates.
 	const float ScreenX = GridCoord.X * CellSize + TileSize / 2.0f + TilePadding;
 	const float ScreenY = GridCoord.Y * CellSize + TileSize / 2.0f + TilePadding;
     
 	return FVector2D(ScreenX, ScreenY);
+}
+
+void UOnetBoardWidget::DrawConnectionPath(const TArray<FIntPoint>& Path)
+{
+	// Clear previous path.
+	ActivePathPoints.Empty();
+
+	// Convert grid coordinates to screen coordinates.
+	for (const FIntPoint& GridCoord : Path)
+	{
+		ActivePathPoints.Add(GridToScreenPosition(GridCoord));
+	}
+
+	// Start displaying the path.
+	bShowPath = true;
+	PathStartTime = GetWorld()->GetTimeSeconds();
+
+	UE_LOG(LogTemp, Log, TEXT("DrawConnectionPath: %d points"), ActivePathPoints.Num());
+}
+
+void UOnetBoardWidget::ClearPath()
+{
+	bShowPath = false;
+	ActivePathPoints.Empty();
 }
