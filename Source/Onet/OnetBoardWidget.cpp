@@ -329,6 +329,16 @@ void UOnetBoardWidget::HandleMatchFailed()
 {
 	// TODO: Add visual feedback for failed match (e.g., screen shake, sound).
 	UE_LOG(LogTemp, Warning, TEXT("Match failed!"));
+
+	if (Board)
+	{
+		FIntPoint First;
+		FIntPoint Second;
+		if (Board->GetLastFailedPair(First, Second))
+		{
+			OnTilesMatchFailed.Broadcast(First, Second);
+		}
+	}
 }
 
 void UOnetBoardWidget::HandleShuffleClicked()

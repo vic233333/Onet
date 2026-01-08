@@ -7,6 +7,8 @@
 #include "Blueprint/UserWidget.h"
 #include "OnetBoardWidget.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnetWidgetMatchFailed, FIntPoint, FirstTile, FIntPoint, SecondTile);
+
 class UUniformGridPanel;
 class UUniformGridComponent;
 class UOnetTileWidget;
@@ -33,6 +35,10 @@ public:
 	// Convert grid coordinate to screen position (top-left of tile).
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Onet|UI")
 	FVector2D GridToScreenPosition(const FIntPoint& GridCoord) const;
+
+	// Fired when a match attempt fails (with the attempted pair).
+	UPROPERTY(BlueprintAssignable, Category="Onet|Board")
+	FOnetWidgetMatchFailed OnTilesMatchFailed;
 
 protected:
 	virtual void NativeOnInitialized() override;

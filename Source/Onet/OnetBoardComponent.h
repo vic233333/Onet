@@ -125,6 +125,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	bool CanLink(int32 X1, int32 Y1, int32 X2, int32 Y2, TArray<FIntPoint>& OutPath) const;
 
+	// Retrieve the last failed match attempt (if any).
+	UFUNCTION(BlueprintPure, Category = "Onet|Board")
+	bool GetLastFailedPair(FIntPoint& OutFirst, FIntPoint& OutSecond) const;
+
 	// Shuffle remaining tiles. Consumes one of the limited charges (auto or manual).
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	bool RequestShuffle();
@@ -241,6 +245,11 @@ private:
 
 	// Guard to avoid recursive deadlock checks.
 	bool bResolvingDeadlock = false;
+
+	// Last failed pair for UI feedback.
+	bool bHasLastFailedPair = false;
+	FIntPoint LastFailedTileA = FIntPoint(-1, -1);
+	FIntPoint LastFailedTileB = FIntPoint(-1, -1);
 
 	// Convert logical coordinate to physical coordinate (add padding offset)
 	FIntPoint LogicalToPhysical(const FIntPoint& Logical) const

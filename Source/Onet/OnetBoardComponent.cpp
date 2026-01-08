@@ -100,6 +100,9 @@ void UOnetBoardComponent::InitializeBoard(const int32 InWidth, const int32 InHei
 	RemainingShuffleUses = MaxShuffleUses;
 	bWildLinkPrimed = false;
 	ClearHintState();
+	bHasLastFailedPair = false;
+	LastFailedTileA = FIntPoint(-1, -1);
+	LastFailedTileB = FIntPoint(-1, -1);
 
 	// Notify listeners (UI) to build/refresh.
 	OnBoardChanged.Broadcast();
@@ -381,6 +384,11 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 		return;
 	}
 
+	// Clear previous failed pair marker.
+	bHasLastFailedPair = false;
+	LastFailedTileA = FIntPoint(-1, -1);
+	LastFailedTileB = FIntPoint(-1, -1);
+
 	const int32 Index = LogicalToPhysicalIndex(X, Y); // Convert logical (X, Y) to physical index.
 
 	// Checking an empty tile does nothing.
@@ -473,6 +481,9 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 	{
 		// Match failed.
 		UE_LOG(LogTemp, Warning, TEXT("Match failed: no valid path."));
+		bHasLastFailedPair = true;
+		LastFailedTileA = FirstSelection;
+		LastFailedTileB = Clicked;
 
 		// Broadcast match failed event for feedback.
 		OnMatchFailed.Broadcast();
@@ -735,4 +746,11 @@ bool UOnetBoardComponent::IsBoardCleared() const
 	}
 
 	return true;
+}
+
+bool UOnetBoardComponent::GetLastFailedPair(FIntPoint& OutFirst, FIntPoint& OutSecond) const
+{
+	OutFirst = LastFailedTileA;
+	OutSecond = LastFailedTileB;
+	return bHasLastFailedPair;
 }
