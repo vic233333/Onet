@@ -26,6 +26,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	void RebuildGrid();
+	
+	// Convert grid coordinate to screen position (top-left of tile).
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Onet|UI")
+	FVector2D GridToScreenPosition(const FIntPoint& GridCoord) const;
 
 protected:
 	virtual void NativeOnInitialized() override;

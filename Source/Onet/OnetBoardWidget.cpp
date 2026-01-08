@@ -162,3 +162,17 @@ void UOnetBoardWidget::HandleMatchFailed()
 	// Call the Blueprint implementable event to show feedback.
 	ShowMatchFailedFeedback();
 }
+
+FVector2D UOnetBoardWidget::GridToScreenPosition(const FIntPoint& GridCoord) const
+{
+	// Calculate cell size including padding.
+	const float CellSize = TileSize + TilePadding;
+    
+	// Calculate screen position (center of the tile)
+	// by multiplying grid coordinates with cell size and adding half tile size and padding.
+	// This assumes the grid starts at (0,0) in screen space.
+	const float ScreenX = GridCoord.X * CellSize + TileSize / 2.0f + TilePadding;
+	const float ScreenY = GridCoord.Y * CellSize + TileSize / 2.0f + TilePadding;
+    
+	return FVector2D(ScreenX, ScreenY);
+}
