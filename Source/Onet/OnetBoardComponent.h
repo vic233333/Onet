@@ -90,6 +90,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	void HandleTileClicked(int32 X, int32 Y);
 
+	// Clear current selection.
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	void ClearSelection();
+
 	// Check if two tiles can be linked with at most 2 turns.
 	// Returns true if a valid path exists, and optionally returns the path.
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")

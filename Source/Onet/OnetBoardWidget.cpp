@@ -13,6 +13,22 @@ void UOnetBoardWidget::NativeOnInitialized()
 }
 
 /**
+ * Handle mouse button down to detect clicks on empty areas.
+ * This allows deselecting tiles by clicking on the background.
+ */
+FReply UOnetBoardWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	// Clear selection when clicking on the background (not on a tile).
+	if (Board)
+	{
+		Board->ClearSelection();
+	}
+
+	// Return Unhandled so that child widgets (tiles) can still receive clicks.
+	return FReply::Unhandled();
+}
+
+/**
  * Initialize the board widget with a board logic component.
  * @param InBoard - Board logic component to bind to this UI.
  */
@@ -60,6 +76,7 @@ void UOnetBoardWidget::RebuildGrid()
 			if (UOnetTileWidget* Tile = CreateWidget<UOnetTileWidget>(this, TileWidgetClass))
 			{
 				Tile->InitializeTile(X, Y);
+				Tile->SetFixedSize(TileSize);
 
 				// Each tile notifies the board when clicked.
 				Tile->OnTileClicked.AddDynamic(Board, &UOnetBoardComponent::HandleTileClicked);

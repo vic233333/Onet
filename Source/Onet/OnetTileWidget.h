@@ -28,16 +28,22 @@ public:
 	// Called after widget creation to assign its grid coordinate.
 	void InitializeTile(const int32 InX, const int32 InY);
 
+	// Set fixed size for the tile to make it square.
+	void SetFixedSize(float Size);
+
 	// Update visuals based on board data.
 	UFUNCTION(BlueprintCallable, Category = "Onet|Tile")
 	void SetTileVisual(bool bIsEmpty, int32 TileTypeId, bool bIsSelected) const;
 
-	// Bind native events after the widget is constructed.
-	virtual void NativeOnInitialized() override;
-	
 	// UI event for parent widget to subscribe to.
 	UPROPERTY(BlueprintAssignable, Category="Onet|Events")
 	FOnetTileClicked OnTileClicked;
+
+	// Bind native events after the widget is constructed.
+	virtual void NativeOnInitialized() override;
+
+private:
+	float FixedTileSize = 80.0f;
 	
 protected:
 	/**

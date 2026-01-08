@@ -102,6 +102,19 @@ bool UOnetBoardComponent::GetTile(const int32 X, const int32 Y, FOnetTile& OutTi
 }
 
 /**
+ * Clear the current selection.
+ */
+void UOnetBoardComponent::ClearSelection()
+{
+	if (bHasFirstSelection)
+	{
+		bHasFirstSelection = false;
+		FirstSelection = FIntPoint(-1, -1);
+		OnSelectionChanged.Broadcast(false, FirstSelection);
+	}
+}
+
+/**
  * Check if two tiles can be linked with at most 2 turns using BFS.
  * The path can only go through empty tiles (or the start/end tiles).
  *

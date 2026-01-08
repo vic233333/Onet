@@ -31,6 +31,21 @@ void UOnetTileWidget::InitializeTile(const int32 InX, const int32 InY)
 }
 
 /**
+ * Set fixed size for the tile to make it square.
+ * @param Size - The width and height of the tile in pixels.
+ */
+void UOnetTileWidget::SetFixedSize(const float Size)
+{
+	FixedTileSize = Size;
+
+	// Force the widget to use the specified size.
+	if (TileButton)
+	{
+		TileButton->SetRenderTransformPivot(FVector2D(0.5f, 0.5f));
+	}
+}
+
+/**
  * Broadcast tile clicked event with its coordinates.
  */
 void UOnetTileWidget::HandleButtonClicked()
@@ -47,6 +62,16 @@ void UOnetTileWidget::HandleButtonClicked()
  */
 void UOnetTileWidget::SetTileVisual(const bool bIsEmpty, const int32 TileTypeId, bool bIsSelected) const
 {
+	// Hide empty tiles completely.
+	if (bIsEmpty)
+	{
+		const_cast<UOnetTileWidget*>(this)->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+
+	// Show non-empty tiles.
+	const_cast<UOnetTileWidget*>(this)->SetVisibility(ESlateVisibility::Visible);
+
 	if (TileButton)
 	{
 		// Disable interaction for empty tiles.
