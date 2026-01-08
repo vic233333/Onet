@@ -23,11 +23,13 @@ public:
 	// Inject board logic component into this UI.
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	void InitializeWithBoard(UOnetBoardComponent* InBoard);
+	
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	void RebuildGrid();
 
 protected:
 	virtual void NativeOnInitialized() override;
-
-protected:
+	
 	// Override to handle mouse button down events for background clicks.
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 
@@ -72,7 +74,6 @@ protected:
 	void ShowMatchFailedFeedback();
 
 private:
-	void RebuildGrid();
 	void RefreshAllTiles();
 
 	UFUNCTION()

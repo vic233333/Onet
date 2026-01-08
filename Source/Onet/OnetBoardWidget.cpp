@@ -109,9 +109,9 @@ void UOnetBoardWidget::RefreshAllTiles()
 			{
 				continue;
 			}
-			
+
 			const bool bIsSelected = bHasSelection && (X == SelectedX) && (Y == SelectedY);
-			
+
 			if (UOnetTileWidget* TileWidget = TileWidgets[Y * W + X])
 			{
 				TileWidget->SetTileVisual(TileData.bEmpty, TileData.TileTypeId, bIsSelected);
@@ -121,8 +121,23 @@ void UOnetBoardWidget::RefreshAllTiles()
 }
 
 
+/**
+ * Handlers for board events to update the UI.
+ */
 void UOnetBoardWidget::HandleBoardChanged()
 {
+	if (!Board || !GridPanel)
+	{
+		return;
+	}
+
+	// Check if grid size has changed.
+	const int32 ExpectedTileCount = Board->GetBoardWidth() * Board->GetBoardHeight();
+	if (TileWidgets.Num() != ExpectedTileCount)
+	{
+		RebuildGrid();
+	}
+
 	RefreshAllTiles();
 }
 

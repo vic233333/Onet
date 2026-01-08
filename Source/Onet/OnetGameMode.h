@@ -18,30 +18,34 @@ UCLASS()
 class ONET_API AOnetGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
-	
-	public:
+
+public:
 	AOnetGameMode();
-	
+
 	virtual void BeginPlay() override;
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
 	UOnetBoardComponent* GetOnetBoardComponent() const;
-	
-	private:
+
+	// Reinitialize the board with new parameters.
+	UFUNCTION(BlueprintCallable, Category = "Onet|Board")
+	void ReinitializeBoard(const int32 NewWidth, const int32 NewHeight, const int32 NewNumTileTypes);
+
+private:
 	// Which BoardActor class to spawn.
 	UPROPERTY(EditDefaultsOnly, Category = "Onet|Board")
 	TSubclassOf<AOnetBoardActor> BoardActorClass;
-	
+
 	UPROPERTY()
 	TObjectPtr<AOnetBoardActor> BoardActor;
-	
+
 	// Board parameters (tweakable in BP_OnetGameMode or defaults)
-	UPROPERTY(EditDefaultsOnly, Category = "Onet|Board")
+	UPROPERTY(EditAnywhere, Category = "Onet|Board")
 	int32 BoardWidth = 10;
-	
-	UPROPERTY(EditDefaultsOnly, Category = "Onet|Board")
+
+	UPROPERTY(EditAnywhere, Category = "Onet|Board")
 	int32 BoardHeight = 8;
-	
-	UPROPERTY(EditDefaultsOnly, Category = "Onet|Board")
+
+	UPROPERTY(EditAnywhere, Category = "Onet|Board")
 	int32 NumTileTypes = 12;
 };

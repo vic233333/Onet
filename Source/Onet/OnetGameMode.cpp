@@ -15,7 +15,8 @@ AOnetGameMode::AOnetGameMode()
 	// Use our custom PlayerController class so we can create the UI and show mouse cursor.
 	// PlayerControllerClass = AOnetPlayerController::StaticClass();
 
-	static ConstructorHelpers::FClassFinder<APlayerController> PlayerControllerBPClass(TEXT("/Game/Widget/BP_OnetPlayerContorller"));
+	static ConstructorHelpers::FClassFinder<APlayerController> PlayerControllerBPClass(
+		TEXT("/Game/Widget/BP_OnetPlayerContorller"));
 	if (PlayerControllerBPClass.Class != NULL)
 	{
 		PlayerControllerClass = PlayerControllerBPClass.Class;
@@ -65,4 +66,16 @@ void AOnetGameMode::BeginPlay()
 UOnetBoardComponent* AOnetGameMode::GetOnetBoardComponent() const
 {
 	return BoardActor ? BoardActor->GetBoardComponent() : nullptr;
+}
+
+void AOnetGameMode::ReinitializeBoard(const int32 NewWidth, const int32 NewHeight, const int32 NewNumTileTypes)
+{
+	BoardWidth = NewWidth;
+	BoardHeight = NewHeight;
+	NumTileTypes = NewNumTileTypes;
+
+	if (UOnetBoardComponent* BoardComp = GetOnetBoardComponent())
+	{
+		BoardComp->InitializeBoard(BoardWidth, BoardHeight, NumTileTypes);
+	}
 }
