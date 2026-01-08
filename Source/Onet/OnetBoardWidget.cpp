@@ -431,6 +431,31 @@ FVector2D UOnetBoardWidget::GridToScreenPosition(const FIntPoint& GridCoord) con
 		(GridCoord.Y * CellSize) + (CellSize * 0.5f));
 }
 
+UOnetTileWidget* UOnetBoardWidget::GetTileWidgetAt(int32 X, int32 Y) const
+{
+	if (!Board)
+	{
+		return nullptr;
+	}
+
+	const int32 W = Board->GetBoardWidth();
+	const int32 H = Board->GetBoardHeight();
+
+	// Check bounds
+	if (X < 0 || X >= W || Y < 0 || Y >= H)
+	{
+		return nullptr;
+	}
+
+	const int32 Index = Y * W + X;
+	if (!TileWidgets.IsValidIndex(Index))
+	{
+		return nullptr;
+	}
+
+	return TileWidgets[Index];
+}
+
 void UOnetBoardWidget::DrawConnectionPath(const TArray<FIntPoint>& Path)
 {
 	// Clear previous path.

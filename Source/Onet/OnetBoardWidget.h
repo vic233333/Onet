@@ -36,6 +36,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Onet|UI")
 	FVector2D GridToScreenPosition(const FIntPoint& GridCoord) const;
 
+	// Get the TileWidget at the specified grid coordinates.
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Onet|UI")
+	UOnetTileWidget* GetTileWidgetAt(int32 X, int32 Y) const;
+
 	// Fired when a match attempt fails (with the attempted pair).
 	UPROPERTY(BlueprintAssignable, Category="Onet|Board")
 	FOnetWidgetMatchFailed OnTilesMatchFailed;
