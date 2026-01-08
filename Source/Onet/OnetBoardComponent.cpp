@@ -211,13 +211,11 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 	TQueue<FPathNode> Queue;
 	TSet<TPair<FIntPoint, int32>> Visited; // (Position, Direction)
 
-	// Start from the first tile in all four directions (using physical coordinates).
-	for (int32 Dir = 0; Dir < 4; ++Dir)
-	{
-		TArray<FIntPoint> InitialPath;
-		InitialPath.Add(PhysStart);
-		Queue.Enqueue(FPathNode(PhysStart, Dir, 0, InitialPath));
-	}
+	// Start from the first tile with no initial direction (using physical coordinates).
+	// Direction -1 means "no direction yet", so the first move won't count as a turn.
+	TArray<FIntPoint> InitialPath;
+	InitialPath.Add(PhysStart);
+	Queue.Enqueue(FPathNode(PhysStart, -1, 0, InitialPath));
 
 	while (!Queue.IsEmpty())
 	{
@@ -293,6 +291,12 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 
 void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 {
+	// Prevent new clicks while processing a match (during animation).
+	if (bIsProcessingMatch)
+	{
+		return;
+	}
+
 	if (!IsInBonds(X, Y) || Tiles.Num() == 0)
 	{
 		return;
@@ -339,15 +343,28 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Match successful! Path has %d points."), Path.Num());
 
+		// Set flag to prevent new clicks during animation.
+		bIsProcessingMatch = true;
+
+		// Store tiles to remove after delay.
+		PendingRemovalTile1 = FirstSelection;
+		PendingRemovalTile2 = FIntPoint(X, Y);
+
 		// Broadcast match successful event with the path for animation.
+		// UI will draw the connection line.
 		OnMatchSuccessful.Broadcast(Path);
 
-		// Remove the matched tiles (convert logical coords to physical index).
-		Tiles[LogicalToPhysicalIndex(FirstSelection.X, FirstSelection.Y)].bEmpty = true;
-		Tiles[Index].bEmpty = true;
-
-		// Notify UI to refresh.
-		OnBoardChanged.Broadcast();
+		// Set timer to remove tiles after delay (allows animation to play).
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(
+				TileRemovalTimerHandle,
+				this,
+				&UOnetBoardComponent::RemoveMatchedTiles,
+				TileRemovalDelay,
+				false
+			);
+		}
 	}
 	else
 	{
@@ -362,4 +379,30 @@ void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 	bHasFirstSelection = false;
 	FirstSelection = FIntPoint(-1, -1);
 	OnSelectionChanged.Broadcast(false, FirstSelection);
+}
+
+/**
+ * Called by timer to actually remove the matched tiles.
+ * This is delayed to allow the connection line animation to play.
+ */
+void UOnetBoardComponent::RemoveMatchedTiles()
+{
+	// Remove the matched tiles.
+	const int32 Index1 = LogicalToPhysicalIndex(PendingRemovalTile1.X, PendingRemovalTile1.Y);
+	const int32 Index2 = LogicalToPhysicalIndex(PendingRemovalTile2.X, PendingRemovalTile2.Y);
+
+	Tiles[Index1].bEmpty = true;
+	Tiles[Index2].bEmpty = true;
+
+	// Clear pending removal data.
+	PendingRemovalTile1 = FIntPoint(-1, -1);
+	PendingRemovalTile2 = FIntPoint(-1, -1);
+
+	// Clear processing flag to allow new clicks.
+	bIsProcessingMatch = false;
+
+	// Notify UI to refresh and hide the tiles.
+	OnBoardChanged.Broadcast();
+
+	UE_LOG(LogTemp, Log, TEXT("Matched tiles removed."));
 }

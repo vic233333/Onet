@@ -135,6 +135,21 @@ private:
 	bool bHasFirstSelection = false;
 	FIntPoint FirstSelection = FIntPoint(-1, -1);
 
+	// Delay before removing matched tiles (in seconds).
+	// This allows time for the connection line animation to play.
+	UPROPERTY(EditDefaultsOnly, Category = "Onet|Board")
+	float TileRemovalDelay = 0.5f;
+
+	// Timer handle for delayed tile removal.
+	FTimerHandle TileRemovalTimerHandle;
+
+	// Tiles pending removal (stored as logical coordinates).
+	FIntPoint PendingRemovalTile1 = FIntPoint(-1, -1);
+	FIntPoint PendingRemovalTile2 = FIntPoint(-1, -1);
+
+	// Flag to prevent new selections while processing a match.
+	bool bIsProcessingMatch = false;
+
 	// Convert logical coordinate to physical coordinate (add padding offset)
 	FIntPoint LogicalToPhysical(const FIntPoint& Logical) const
 	{
@@ -164,4 +179,7 @@ private:
 	{
 		return X >= 0 && X < Width && Y >= 0 && Y < Height;
 	}
+
+	// Called by timer to actually remove the matched tiles.
+	void RemoveMatchedTiles();
 };

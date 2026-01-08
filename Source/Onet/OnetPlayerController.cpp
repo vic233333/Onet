@@ -25,7 +25,7 @@ void AOnetPlayerController::BeginPlay()
 
 	// Allow both game input and UI interaction.
 	// It can also be set to UI only if the game does not require direct input.
-	FInputModeGameAndUI InputMode;
+	const FInputModeGameAndUI InputMode;
 	SetInputMode(InputMode);
 
 	// Create and display the main board widget.
