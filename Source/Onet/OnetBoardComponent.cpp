@@ -220,6 +220,8 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 {
 	OutPath.Empty();
 
+	UE_LOG(LogTemp, Warning, TEXT("CanLink called: (%d,%d) -> (%d,%d)"), X1, Y1, X2, Y2);
+
 	// Same position is not a valid link.
 	if (X1 == X2 && Y1 == Y2)
 	{
@@ -279,7 +281,7 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 	};
 
 	TQueue<FPathNode> Queue;
-	TSet<TPair<FIntPoint, int32>> Visited; // (Position, Direction)
+	TMap<TPair<FIntPoint, int32>, int32> VisitedMinTurns; // (Position, Direction) -> Min turns seen
 
 	// Start from the first tile with no initial direction (using physical coordinates).
 	// Direction -1 means "no direction yet", so the first move won't count as a turn.
@@ -339,14 +341,17 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 				continue;
 			}
 
-			// Check if we've already visited this state.
+			// Check if we've already visited this state with fewer or equal turns.
 			const TPair<FIntPoint, int32> State(NextPos, NewDir);
-			if (Visited.Contains(State))
+			if (int32* ExistingTurns = VisitedMinTurns.Find(State))
 			{
-				continue;
+				if (NewTurns >= *ExistingTurns)
+				{
+					continue;
+				}
 			}
 
-			Visited.Add(State);
+			VisitedMinTurns.Add(State, NewTurns);
 
 			// Add to queue.
 			TArray<FIntPoint> NewPath = Current.Path;
@@ -355,12 +360,16 @@ bool UOnetBoardComponent::CanLink(const int32 X1, const int32 Y1, const int32 X2
 		}
 	}
 
+	UE_LOG(LogTemp, Warning, TEXT("CanLink: No path found after BFS"));
+
 	// No valid path found.
 	return false;
 }
 
 void UOnetBoardComponent::HandleTileClicked(const int32 X, const int32 Y)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Tile clicked: (%d, %d)"), X, Y);
+
 	// Prevent new clicks while processing a match (during animation).
 	if (bIsProcessingMatch)
 	{

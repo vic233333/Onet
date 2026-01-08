@@ -284,7 +284,7 @@ void UOnetBoardWidget::ShowCompletionScreen()
 
 	if (!CompletionWidget && GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("关卡完成！"));
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("Complete"));
 	}
 }
 
@@ -511,12 +511,15 @@ void UOnetBoardWidget::UpdateAutoLayout(const FGeometry& MyGeometry)
 			}
 		}
 
-		// Resize + center the board so aspect ratio matches the logical grid.
-		const float BoardWidthPx = (TileSize + PaddingXPerTile) * W;
-		const float BoardHeightPx = (TileSize + PaddingYPerTile) * H;
-		SetDesiredSizeInViewport(FVector2D(BoardWidthPx, BoardHeightPx));
-		SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
-		SetAnchorsInViewport(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
+		// Optionally resize the widget to match board bounds. Disabled by default to keep full-screen layouts intact.
+		if (bAutoSizeToBoard)
+		{
+			const float BoardWidthPx = (TileSize + PaddingXPerTile) * W;
+			const float BoardHeightPx = (TileSize + PaddingYPerTile) * H;
+			SetDesiredSizeInViewport(FVector2D(BoardWidthPx, BoardHeightPx));
+			SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+			SetAnchorsInViewport(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
+		}
 	}
 }
 

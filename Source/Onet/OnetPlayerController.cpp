@@ -25,8 +25,14 @@ void AOnetPlayerController::BeginPlay()
 
 	// Allow both game input and UI interaction.
 	// It can also be set to UI only if the game does not require direct input.
-	const FInputModeGameAndUI InputMode;
+	// For a pure-UMG experience, force UI-only input so 3D scene does not capture drag/click.
+	FInputModeUIOnly InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputMode);
+	bEnableClickEvents = false;
+	bEnableMouseOverEvents = false;
+	SetIgnoreMoveInput(true);
+	SetIgnoreLookInput(true);
 
 	// Create and display the main board widget.
 	if (BoardWidgetClass)
@@ -34,6 +40,10 @@ void AOnetPlayerController::BeginPlay()
 		if (UOnetBoardWidget* BoardWidget = CreateWidget<UOnetBoardWidget>(this, BoardWidgetClass))
 		{
 			BoardWidget->AddToViewport();
+
+			// Focus the board widget for UI-only input.
+			InputMode.SetWidgetToFocus(BoardWidget->TakeWidget());
+			SetInputMode(InputMode);
 
 			// Get board component from GameMode and pass it to the widget if needed.
 			if (AOnetGameMode* GM = GetWorld()->GetAuthGameMode<AOnetGameMode>())

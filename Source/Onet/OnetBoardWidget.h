@@ -64,6 +64,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Onet|UI")
 	float PathDisplayDuration = 0.5f;
 
+	// If true, the widget resizes itself to board bounds; if false, keeps Blueprint-authored full-screen layout.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Onet|UI")
+	bool bAutoSizeToBoard = false;
+
 private:
 	// BindWidget requires a UniformGridPanel named exactly "GridPanel" in WBP_OnetBoard.
 	UPROPERTY(meta=(BindWidget))
