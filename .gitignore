@@ -7,6 +7,7 @@ Binaries/
 DerivedDataCache/
 Intermediate/
 Saved/
+Package/
 
 # Optional: keep Saved/Config if you need it tracked (common in teams)
 # If you want Saved/Config tracked, uncomment the next two lines:
