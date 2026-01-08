@@ -85,7 +85,7 @@ private:
 
 	// Path drawing state.
 	bool bShowPath = false;
-	TArray<FVector2D> ActivePathPoints;
+	TArray<FIntPoint> ActivePathGridPoints;
 	float PathStartTime = 0.0f;
 
 private:
@@ -96,6 +96,12 @@ private:
 
 	// Clear the path after display duration.
 	void ClearPath();
+
+	// Recalculate slot sizes / desired board size to keep tiles square and fit the viewport.
+	void UpdateAutoLayout(const FGeometry& MyGeometry);
+
+	// Derive origin and per-cell step in local space (supports outer padding coords).
+	bool ComputeGridMetrics(FVector2D& OutOrigin, FVector2D& OutStep) const;
 
 	UFUNCTION()
 	void HandleBoardChanged();

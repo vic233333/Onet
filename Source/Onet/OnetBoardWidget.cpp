@@ -6,6 +6,8 @@
 #include "OnetTileWidget.h"
 #include "Components/UniformGridPanel.h"
 #include "Components/UniformGridSlot.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Engine/GameViewportClient.h"
 
 void UOnetBoardWidget::NativeOnInitialized()
 {
@@ -15,6 +17,9 @@ void UOnetBoardWidget::NativeOnInitialized()
 void UOnetBoardWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	// Keep layout responsive and tiles square.
+	UpdateAutoLayout(MyGeometry);
 
 	// Check if path display duration has elapsed.
 	if (bShowPath)
@@ -28,21 +33,30 @@ void UOnetBoardWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 }
 
 int32 UOnetBoardWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
-                                     const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
-                                     int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+                                    const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
+                                    int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	// Call parent paint first.
 	int32 Result = Super::NativePaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle,
 	                                  bParentEnabled);
 
 	// Draw the connection path if visible.
-	if (bShowPath && ActivePathPoints.Num() >= 2)
+	if (bShowPath && ActivePathGridPoints.Num() >= 2)
 	{
-		// Draw lines between consecutive points.
-		for (int32 i = 0; i < ActivePathPoints.Num() - 1; ++i)
+		FVector2D Origin;
+		FVector2D Step;
+		if (!ComputeGridMetrics(Origin, Step))
 		{
-			const FVector2D Start = ActivePathPoints[i];
-			const FVector2D End = ActivePathPoints[i + 1];
+			return Result;
+		}
+
+		// Draw lines between consecutive points.
+		for (int32 i = 0; i < ActivePathGridPoints.Num() - 1; ++i)
+		{
+			const FVector2D Start = Origin + FVector2D(ActivePathGridPoints[i].X * Step.X,
+			                                           ActivePathGridPoints[i].Y * Step.Y);
+			const FVector2D End = Origin + FVector2D(ActivePathGridPoints[i + 1].X * Step.X,
+			                                         ActivePathGridPoints[i + 1].Y * Step.Y);
 
 			TArray<FVector2D> LinePoints;
 			LinePoints.Add(Start);
@@ -115,6 +129,8 @@ void UOnetBoardWidget::RebuildGrid()
 
 	// Configure UniformGridPanel to have padding between tiles.
 	GridPanel->SetSlotPadding(FMargin(TilePadding));
+	GridPanel->SetMinDesiredSlotWidth(TileSize);
+	GridPanel->SetMinDesiredSlotHeight(TileSize);
 
 	const int32 W = Board->GetBoardWidth();
 	const int32 H = Board->GetBoardHeight();
@@ -134,7 +150,11 @@ void UOnetBoardWidget::RebuildGrid()
 				Tile->OnTileClicked.AddDynamic(Board, &UOnetBoardComponent::HandleTileClicked);
 
 				// UniformGridPanel expects row, column (map Y - row, X - column)
-				GridPanel->AddChildToUniformGrid(Tile, Y, X);
+				if (UUniformGridSlot* GridSlot = Cast<UUniformGridSlot>(GridPanel->AddChildToUniformGrid(Tile, Y, X)))
+				{
+					GridSlot->SetHorizontalAlignment(HAlign_Fill);
+					GridSlot->SetVerticalAlignment(VAlign_Fill);
+				}
 
 				TileWidgets[Y * W + X] = Tile;
 			}
@@ -216,56 +236,184 @@ void UOnetBoardWidget::HandleMatchFailed()
 
 FVector2D UOnetBoardWidget::GridToScreenPosition(const FIntPoint& GridCoord) const
 {
-	// Try to get the actual widget position if available
-	if (Board)
+	FVector2D Origin;
+	FVector2D Step;
+	if (ComputeGridMetrics(Origin, Step))
 	{
-		const int32 Index = GridCoord.Y * Board->GetBoardWidth() + GridCoord.X;
-		if (TileWidgets.IsValidIndex(Index))
-		{
-			if (UOnetTileWidget* Tile = TileWidgets[Index])
-			{
-				const FGeometry& TileGeometry = Tile->GetCachedGeometry();
-				// Ensure the geometry is valid (size > 0)
-				if (TileGeometry.GetLocalSize().X > 0)
-				{
-					const FGeometry& BoardGeometry = GetCachedGeometry();
-					const FVector2D TileCenterAbsolute = TileGeometry.GetAbsolutePosition() + (TileGeometry.GetAbsoluteSize() * 0.5f);
-					return BoardGeometry.AbsoluteToLocal(TileCenterAbsolute);
-				}
-			}
-		}
+		return Origin + FVector2D(GridCoord.X * Step.X, GridCoord.Y * Step.Y);
 	}
 
-	// Fallback: Calculate the total space each cell occupies (tile size + padding).
-	const float CellSize = TileSize + TilePadding;
-    
-	// Calculate the center of the cell in screen coordinates.
-	const float ScreenX = GridCoord.X * CellSize + TileSize / 2.0f + TilePadding;
-	const float ScreenY = GridCoord.Y * CellSize + TileSize / 2.0f + TilePadding;
-    
-	return FVector2D(ScreenX, ScreenY);
+	// Fallback: assume uniform spacing based on current TileSize/TilePadding.
+	const float CellSize = TileSize + (TilePadding * 2.0f);
+	return FVector2D(
+		(GridCoord.X * CellSize) + (CellSize * 0.5f),
+		(GridCoord.Y * CellSize) + (CellSize * 0.5f));
 }
 
 void UOnetBoardWidget::DrawConnectionPath(const TArray<FIntPoint>& Path)
 {
 	// Clear previous path.
-	ActivePathPoints.Empty();
-
-	// Convert grid coordinates to screen coordinates.
-	for (const FIntPoint& GridCoord : Path)
-	{
-		ActivePathPoints.Add(GridToScreenPosition(GridCoord));
-	}
+	ActivePathGridPoints = Path;
 
 	// Start displaying the path.
-	bShowPath = true;
+	bShowPath = ActivePathGridPoints.Num() >= 2;
 	PathStartTime = GetWorld()->GetTimeSeconds();
 
-	UE_LOG(LogTemp, Log, TEXT("DrawConnectionPath: %d points"), ActivePathPoints.Num());
+	UE_LOG(LogTemp, Log, TEXT("DrawConnectionPath: %d points"), ActivePathGridPoints.Num());
 }
 
 void UOnetBoardWidget::ClearPath()
 {
 	bShowPath = false;
-	ActivePathPoints.Empty();
+	ActivePathGridPoints.Empty();
+}
+
+void UOnetBoardWidget::UpdateAutoLayout(const FGeometry& MyGeometry)
+{
+	if (!GridPanel || !Board)
+	{
+		return;
+	}
+
+	const int32 W = Board->GetBoardWidth();
+	const int32 H = Board->GetBoardHeight();
+	if (W <= 0 || H <= 0)
+	{
+		return;
+	}
+
+	// Prefer viewport size for responsive scaling; fallback to allotted geometry.
+	FVector2D ViewportSize = MyGeometry.GetLocalSize();
+	if (const UWorld* World = GetWorld())
+	{
+		if (UGameViewportClient* ViewportClient = World->GetGameViewport())
+		{
+			FVector2D OutViewportSize;
+			ViewportClient->GetViewportSize(OutViewportSize);
+			if (OutViewportSize.X > 0 && OutViewportSize.Y > 0)
+			{
+				ViewportSize = OutViewportSize;
+			}
+		}
+	}
+
+	if (ViewportSize.X <= 0 || ViewportSize.Y <= 0)
+	{
+		return;
+	}
+
+	// Reserve a margin and compute tile size that keeps tiles square.
+	const float MaxBoardWidth = ViewportSize.X * 0.9f;
+	const float MaxBoardHeight = ViewportSize.Y * 0.9f;
+
+	const float PaddingXPerTile = TilePadding * 2.0f;
+	const float PaddingYPerTile = TilePadding * 2.0f;
+
+	const float AvailableWidthForTiles = MaxBoardWidth - (PaddingXPerTile * W);
+	const float AvailableHeightForTiles = MaxBoardHeight - (PaddingYPerTile * H);
+
+	const float CandidateTileWidth = AvailableWidthForTiles / static_cast<float>(W);
+	const float CandidateTileHeight = AvailableHeightForTiles / static_cast<float>(H);
+	const float NewTileSize = FMath::Max(4.0f, FMath::Min(CandidateTileWidth, CandidateTileHeight));
+
+	if (!FMath::IsNearlyEqual(NewTileSize, TileSize))
+	{
+		TileSize = NewTileSize;
+
+		GridPanel->SetSlotPadding(FMargin(TilePadding));
+		GridPanel->SetMinDesiredSlotWidth(TileSize);
+		GridPanel->SetMinDesiredSlotHeight(TileSize);
+
+		for (UOnetTileWidget* Tile : TileWidgets)
+		{
+			if (!Tile)
+			{
+				continue;
+			}
+
+			Tile->SetFixedSize(TileSize);
+
+			if (UUniformGridSlot* TileSlot = Cast<UUniformGridSlot>(Tile->Slot))
+			{
+				TileSlot->SetHorizontalAlignment(HAlign_Fill);
+				TileSlot->SetVerticalAlignment(VAlign_Fill);
+			}
+		}
+
+		// Resize + center the board so aspect ratio matches the logical grid.
+		const float BoardWidthPx = (TileSize + PaddingXPerTile) * W;
+		const float BoardHeightPx = (TileSize + PaddingYPerTile) * H;
+		SetDesiredSizeInViewport(FVector2D(BoardWidthPx, BoardHeightPx));
+		SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+		SetAnchorsInViewport(FAnchors(0.5f, 0.5f, 0.5f, 0.5f));
+	}
+}
+
+bool UOnetBoardWidget::ComputeGridMetrics(FVector2D& OutOrigin, FVector2D& OutStep) const
+{
+	OutOrigin = FVector2D::ZeroVector;
+	OutStep = FVector2D(TileSize + TilePadding * 2.0f, TileSize + TilePadding * 2.0f);
+
+	if (!Board || TileWidgets.Num() == 0)
+	{
+		return false;
+	}
+
+	const int32 W = Board->GetBoardWidth();
+	const int32 H = Board->GetBoardHeight();
+	if (W <= 0 || H <= 0)
+	{
+		return false;
+	}
+
+	const FGeometry& BoardGeometry = GetCachedGeometry();
+	if (BoardGeometry.GetLocalSize().IsNearlyZero())
+	{
+		return false;
+	}
+
+	// Use the (0,0) tile as origin.
+	if (!TileWidgets.IsValidIndex(0) || !TileWidgets[0])
+	{
+		return false;
+	}
+
+	const FGeometry BaseGeometry = TileWidgets[0]->GetCachedGeometry();
+	if (BaseGeometry.GetLocalSize().IsNearlyZero())
+	{
+		return false;
+	}
+
+	const FVector2D BaseCenterAbsolute = BaseGeometry.GetAbsolutePosition() + (BaseGeometry.GetAbsoluteSize() * 0.5f);
+	OutOrigin = BoardGeometry.AbsoluteToLocal(BaseCenterAbsolute);
+
+	// Measure step in X using neighbor (1,0) if available.
+	if (W > 1 && TileWidgets.IsValidIndex(1) && TileWidgets[1])
+	{
+		const FGeometry NeighborGeo = TileWidgets[1]->GetCachedGeometry();
+		if (!NeighborGeo.GetLocalSize().IsNearlyZero())
+		{
+			const FVector2D NeighborCenterAbsolute = NeighborGeo.GetAbsolutePosition() + (NeighborGeo.GetAbsoluteSize()
+				* 0.5f);
+			const FVector2D NeighborCenterLocal = BoardGeometry.AbsoluteToLocal(NeighborCenterAbsolute);
+			OutStep.X = NeighborCenterLocal.X - OutOrigin.X;
+		}
+	}
+
+	// Measure step in Y using neighbor (0,1) if available.
+	if (H > 1 && TileWidgets.IsValidIndex(W) && TileWidgets[W])
+	{
+		const FGeometry NeighborGeo = TileWidgets[W]->GetCachedGeometry();
+		if (!NeighborGeo.GetLocalSize().IsNearlyZero())
+		{
+			const FVector2D NeighborCenterAbsolute = NeighborGeo.GetAbsolutePosition() + (NeighborGeo.GetAbsoluteSize()
+				* 0.5f);
+			const FVector2D NeighborCenterLocal = BoardGeometry.AbsoluteToLocal(NeighborCenterAbsolute);
+			OutStep.Y = NeighborCenterLocal.Y - OutOrigin.Y;
+		}
+	}
+
+	OutStep.X = FMath::Max(OutStep.X, 1.0f);
+	OutStep.Y = FMath::Max(OutStep.Y, 1.0f);
+	return true;
 }

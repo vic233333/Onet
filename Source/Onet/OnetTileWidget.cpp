@@ -65,7 +65,8 @@ void UOnetTileWidget::SetTileVisual(const bool bIsEmpty, const int32 TileTypeId,
 	// Hide empty tiles completely.
 	if (bIsEmpty)
 	{
-		const_cast<UOnetTileWidget*>(this)->SetVisibility(ESlateVisibility::Collapsed);
+		// Keep slot space so the grid layout remains stable after removal.
+		const_cast<UOnetTileWidget*>(this)->SetVisibility(ESlateVisibility::Hidden);
 		return;
 	}
 
