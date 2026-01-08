@@ -216,7 +216,27 @@ void UOnetBoardWidget::HandleMatchFailed()
 
 FVector2D UOnetBoardWidget::GridToScreenPosition(const FIntPoint& GridCoord) const
 {
-	// Calculate the total space each cell occupies (tile size + padding).
+	// Try to get the actual widget position if available
+	if (Board)
+	{
+		const int32 Index = GridCoord.Y * Board->GetBoardWidth() + GridCoord.X;
+		if (TileWidgets.IsValidIndex(Index))
+		{
+			if (UOnetTileWidget* Tile = TileWidgets[Index])
+			{
+				const FGeometry& TileGeometry = Tile->GetCachedGeometry();
+				// Ensure the geometry is valid (size > 0)
+				if (TileGeometry.GetLocalSize().X > 0)
+				{
+					const FGeometry& BoardGeometry = GetCachedGeometry();
+					const FVector2D TileCenterAbsolute = TileGeometry.GetAbsolutePosition() + (TileGeometry.GetAbsoluteSize() * 0.5f);
+					return BoardGeometry.AbsoluteToLocal(TileCenterAbsolute);
+				}
+			}
+		}
+	}
+
+	// Fallback: Calculate the total space each cell occupies (tile size + padding).
 	const float CellSize = TileSize + TilePadding;
     
 	// Calculate the center of the cell in screen coordinates.
